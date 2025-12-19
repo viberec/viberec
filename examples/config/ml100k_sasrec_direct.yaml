@@ -1,0 +1,16 @@
+# Fine-tuning configuration for GRPO
+finetune:
+  repo_id: "viberec/ML-100k-SASRec-Base"
+  epochs: 3
+  k: 10
+  learning_rate: 0.00001
+  # Logging interval in steps
+  log_interval: 10
+  # Exploration parameter for reward balancing
+  # Reward = alpha * Delta_Useful + (1 - alpha) * Delta_Unexpected
+  alpha: 0.1
+  
+  # GRPO Specific Parameters
+  group_size: 4  
+  kl_beta: 0.1
+  clip_grad_norm: 1.0

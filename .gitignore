@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Environment Variables
+.env
+
+# MacOS
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
+
+# RecBole Artifacts
+log/
+log_tensorboard/
+saved/
+*.pth
+wandb/
+artifacts/
+tmp/
+optuna_results.csv
+hyper_tuning_results.txt
