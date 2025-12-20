@@ -83,69 +83,33 @@ class DeltaRewardCalculator:
         return dcg / idcg
 
     def compute_reward(self, student_lists, baseline_lists, ground_truth, alpha):
-        """
-        Computes the Mixed Relative Reward.
-        
-        Args:
-            student_lists:  Tensor [Batch, Group, K] (Sampled from Policy)
-            baseline_lists: Tensor [Batch, 1, K] (Greedy output from Base Model)
-            ground_truth:   Tensor [Batch]
-            alpha:          Float (0.0 to 1.0), weight for Accuracy.
-            
-        Returns:
-            total_reward: Tensor [Batch, Group]
-        """
-        # Ensure input shapes are consistent for broadcasting
-        if student_lists.ndim == 2:
-            student_lists = student_lists.unsqueeze(1)
-        if baseline_lists.ndim == 2:
-            baseline_lists = baseline_lists.unsqueeze(1)
-            
-        # --- 1. Calculate Metrics ---
-        # Student Metrics: [Batch, Group]
+        # 1. Calculate Raw Metrics [Batch, Group]
         stud_ndcg = self.calc_ndcg(student_lists, ground_truth)
         stud_pop  = self.get_batch_pop(student_lists)
         
-        # Baseline Metrics: [Batch, 1] (No gradients needed for baseline values)
+        # 2. Compute Ranks within the Group (Batch-wise)
+        # argsort twice gives us the rank (0 to G-1)
+        # We want Higher NDCG -> Higher Rank
+        rank_ndcg = stud_ndcg.argsort(dim=1).argsort(dim=1).float()
+        
+        # We want Lower Pop -> Higher Rank (so we negate stud_pop before sorting)
+        rank_pop = (-stud_pop).argsort(dim=1).argsort(dim=1).float()
+        
+        # 3. Normalize Ranks to [0, 1] range
+        # Divide by (Group_Size - 1)
+        group_size = student_lists.size(1)
+        norm_rank_ndcg = rank_ndcg / (group_size - 1 + 1e-8)
+        norm_rank_pop  = rank_pop  / (group_size - 1 + 1e-8)
+        
+        # 4. Combine (Purely Alpha-controlled)
+        # No magic numbers needed. alpha=0.5 means EXACTLY equal weight.
+        total_reward = (alpha * norm_rank_ndcg) + ((1 - alpha) * norm_rank_pop)
+        
+        # 5. Success Rate (for logging)
+        # We track how often the chosen winner beat the baseline
         with torch.no_grad():
             base_ndcg = self.calc_ndcg(baseline_lists, ground_truth)
-            base_pop  = self.get_batch_pop(baseline_lists)
+            # Success if student matches/beats baseline NDCG
+            is_success = (stud_ndcg >= base_ndcg)
             
-        # --- 2. Calculate Deltas (Relative Improvement) ---
-        
-        # Delta NDCG: (Student - Base) / Base
-        # Higher student NDCG is better.
-        # Add epsilon 1e-8 to avoid division by zero.
-        delta_ndcg = (stud_ndcg - base_ndcg) / (base_ndcg + 1e-8)
-        
-        # Delta Pop: (Base - Student) / Base
-        # Lower student Popularity is better (Higher Serendipity).
-        # If Student < Base, result is Positive.
-        delta_pop = (base_pop - stud_pop) / (base_pop + 1e-8)
-        
-        # --- 3. Stability Clipping (Crucial for RL) ---
-        # Prevents gradients from exploding if baseline is tiny.
-        # Range [-1.0, 1.0] usually works well for PPO/GRPO.
-        delta_ndcg = torch.clamp(delta_ndcg, min=-1.0, max=1.0)
-        delta_pop  = torch.clamp(delta_pop, min=-1.0, max=1.0)
-        
-        # --- 4. Safety Anchor & Success Logic ---
-        
-        # 1. Base Logic: If we lose accuracy, penalty is delta_ndcg * 2 ("Safety Anchor")
-        penalty = delta_ndcg * 2.0 
-        
-        # 2. Success Logic: If we maintain/improve accuracy
-        # Reward = alpha * Accuracy_Gain + (1-alpha) * Pop_Reduction
-        full_reward = (alpha * delta_ndcg) + ((1 - alpha) * delta_pop)
-        
-        # 3. Apply the Safety Floor
-        total_reward = torch.where(
-            delta_ndcg >= 0, 
-            full_reward + 0.05, # Small constant bonus for being accurate
-            penalty
-        )
-        
-        # Success is simply: Did we maintain accuracy?
-        success_rate = (delta_ndcg >= 0).float().mean()
-        
-        return torch.clamp(total_reward, -1.0, 1.0), success_rate
+        return total_reward, is_success.float().mean()
