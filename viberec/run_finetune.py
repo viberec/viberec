@@ -26,7 +26,22 @@ def run_rl_finetune(finetune_config_path, base_config_path="examples/config/ml10
     with open(finetune_config_path, 'r') as f:
          ft_config = yaml.safe_load(f)
          
-    repo_id_base = ft_config.get('finetune', {}).get('repo_id', None)
+    # Support both flat config (new) and nested 'finetune' config (old)
+    finetune_section = ft_config.get('finetune', {})
+    if not isinstance(finetune_section, dict):
+        finetune_section = {}
+        
+    def get_param(key, default):
+        # Priority: kwargs > ft_config (flat) > ft_config['finetune'] > default
+        val = kwargs.get(key)
+        if val is not None: return val
+        val = ft_config.get(key)
+        if val is not None: return val
+        val = finetune_section.get(key)
+        if val is not None: return val
+        return default
+
+    repo_id_base = get_param('repo_id', None)
     
     # Initialize distributed process group if needed (fixes dataset download barrier error)
     import torch.distributed as dist
@@ -70,7 +85,7 @@ def run_rl_finetune(finetune_config_path, base_config_path="examples/config/ml10
     )
     
     # Set WandB Name dynamically from Config
-    alpha_val = kwargs.get('alpha', ft_config.get('finetune', {}).get('alpha', 0.5))
+    alpha_val = get_param('alpha', 0.5)
     run_name = f"{config['dataset']}-{config['model']}-GRPO-Alpha{alpha_val}"
     os.environ["WANDB_NAME"] = run_name
     
@@ -120,14 +135,24 @@ def run_rl_finetune(finetune_config_path, base_config_path="examples/config/ml10
     # --- Standard RecBole Workflow End ---
 
     # 2. Inject RL Params into RecBole Config
-    # Priority: kwargs > ft_config > defaults
-    config['alpha'] = kwargs.get('alpha', ft_config['finetune'].get('alpha', 0.5))
-    config['group_size'] = kwargs.get('group_size', ft_config['finetune'].get('group_size', 4))
-    config['kl_beta'] = kwargs.get('kl_beta', ft_config['finetune'].get('kl_beta', 0.01))
-    config['clip_grad_norm'] = kwargs.get('clip_grad_norm', ft_config['finetune'].get('clip_grad_norm', 1.0))
-    config['learning_rate'] = kwargs.get('learning_rate', ft_config['finetune'].get('learning_rate', config['learning_rate']))
+    # Priority: kwargs > config (merged files: finetune > base) > defaults
+    # Note: RecBole Config already holds merged values from files.
     
-    config['epochs'] = kwargs.get('epochs', ft_config['finetune'].get('epochs', 3))
+    def resolve(key, default):
+        # kwargs > config value > default
+        if key in kwargs:
+            return kwargs[key]
+        if key in config:
+            return config[key]
+        return default
+
+    config['alpha'] = resolve('alpha', 0.5)
+    config['group_size'] = resolve('group_size', 4)
+    config['kl_beta'] = resolve('kl_beta', 0.01)
+    config['clip_grad_norm'] = resolve('clip_grad_norm', 1.0)
+    config['learning_rate'] = resolve('learning_rate', config['learning_rate'])
+    
+    config['epochs'] = resolve('epochs', 3)
     
     print(f"\n=== Starting GRPO Fine-tuning ===")
     
