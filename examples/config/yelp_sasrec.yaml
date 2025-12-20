@@ -23,8 +23,8 @@ item_inter_num_interval: "[10,inf)"
 
 # Training and Evaluation
 epochs: 500
-train_batch_size: 12288
-eval_batch_size: 12288
+train_batch_size: 8192
+eval_batch_size: 8192
 metrics: [NDCG, Hit, AveragePopularity, GiniIndex, ItemCoverage, ShannonEntropy, TailPercentage]
 topk: [10]
 valid_metric: NDCG@10
@@ -40,4 +40,4 @@ train_neg_sample_args: ~
 embedding_size: 64
 learning_rate: 0.001
 n_layers: 2
-show_progress: True
+show_progress: False
