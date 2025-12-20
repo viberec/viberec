@@ -129,13 +129,20 @@ class DeltaRewardCalculator:
         delta_ndcg = torch.clamp(delta_ndcg, min=-1.0, max=1.0)
         delta_pop  = torch.clamp(delta_pop, min=-1.0, max=1.0)
         
-        # --- 4. Weighted Sum ---
-        # Strict Gate: Reward Serendipity ONLY if BOTH Accuracy and Serendipity improve.
-        # Otherwise, reward is based solely on Accuracy (NDCG).
+        # --- 3. Weighted Full Reward (Before Floor) ---
         full_reward = (alpha * delta_ndcg) + ((1 - alpha) * delta_pop)
-        # only_ndcg_reward = (alpha * delta_ndcg)
         
-        condition = (delta_ndcg >= 0) & (delta_pop >= 0)
-        total_reward = torch.where(condition, full_reward, 0)
+        # --- 4. The Safety Floor ---
+        # Logic: 
+        # If delta_ndcg < 0: Penalty = delta_ndcg (Negative) -> Signal to get back to baseline
+        # If delta_ndcg >= 0: Reward = full_reward (Weighted trade-off)
+        total_reward = torch.where(
+            delta_ndcg >= 0, 
+            full_reward, 
+            delta_ndcg 
+        )
         
-        return total_reward
+        # Calculate "Success Rate" for logging (How often we match/beat baseline)
+        success_rate = (delta_ndcg >= 0).float().mean()
+        
+        return torch.clamp(total_reward, -1.0, 1.0), success_rate

@@ -114,6 +114,7 @@ class GRPOTrainer(Trainer):
         self.model.train()
         total_loss = 0.0
         total_reward = 0.0
+        total_success = 0.0
         total_kl = 0.0
         
         # TQDM handling
@@ -140,9 +141,10 @@ class GRPOTrainer(Trainer):
             target_items = interaction[self.config['ITEM_ID_FIELD']]
             
             # [Batch, Group]
-            rewards = self.reward_calc.compute_reward(
+            rewards, success_rate = self.reward_calc.compute_reward(
                 student_lists, baseline_lists, target_items, alpha=self.alpha
             )
+            total_success += success_rate.item()
 
             # --- D. Advantage ---
             mean_rew = rewards.mean(dim=1, keepdim=True)
@@ -190,6 +192,7 @@ class GRPOTrainer(Trainer):
         # Logging
         avg_loss = total_loss / len(train_data)
         avg_reward = total_reward / len(train_data)
-        self.logger.info(f"Epoch {epoch_idx} done. Loss: {avg_loss:.4f} | Rew: {avg_reward:.4f}")
+        avg_success = total_success / len(train_data)
+        self.logger.info(f"Epoch {epoch_idx} done. Loss: {avg_loss:.4f} | Rew: {avg_reward:.4f} | Success: {avg_success:.2%}")
         
         return avg_loss
