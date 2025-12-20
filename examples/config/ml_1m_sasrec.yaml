@@ -23,8 +23,10 @@ item_inter_num_interval: "[10,inf)"
 
 # Training and Evaluation
 epochs: 500
-train_batch_size: 4096
-eval_batch_size: 4096 
+train_batch_size: 12288
+eval_batch_size: 12288
+metrics: [NDCG, Hit, AveragePopularity, GiniIndex, ItemCoverage, ShannonEntropy, TailPercentage]
+topk: [10]
 valid_metric: NDCG@10
 eval_args:
     split: {'LS': 'valid_and_test'}
