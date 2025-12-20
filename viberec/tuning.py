@@ -16,7 +16,7 @@ def objective(trial, config_path, base_config_path):
         'alpha': trial.suggest_categorical('alpha', [0.8, 0.9, 0.95]),
         # Increase Group Size for better Advantage estimates
         'group_size': trial.suggest_categorical('group_size', [8, 16]),
-        'kl_beta': trial.suggest_categorical('kl_beta', [0.05, 0.1, 0.5]),
+        'kl_beta': trial.suggest_categorical('kl_beta', [0.05, 0.2, 0.5]),
         'epochs': 5 # Give it a few more epochs to recover from the initial exploration
     }
     
