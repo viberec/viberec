@@ -28,6 +28,22 @@ def run_rl_finetune(finetune_config_path, base_config_path="examples/config/ml10
          
     repo_id_base = ft_config.get('finetune', {}).get('repo_id', None)
     
+    # Initialize distributed process group if needed (fixes dataset download barrier error)
+    import torch.distributed as dist
+    if dist.is_available() and not dist.is_initialized():
+        try:
+             # Try initializing with env vars (if run via torchrun)
+             dist.init_process_group(backend='nccl' if torch.cuda.is_available() else 'gloo')
+        except Exception:
+             # Fallback to single-process init (if run directly)
+             print("Initializing dummy distributed group for single-process mode...")
+             dist.init_process_group(
+                 backend='gloo', 
+                 init_method='tcp://127.0.0.1:12345', 
+                 rank=0, 
+                 world_size=1
+             )
+
     config_file_list = [base_config_path, finetune_config_path]
     
     # --- Standard RecBole Workflow Start ---
