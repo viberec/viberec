@@ -53,10 +53,10 @@ def run_experiment_and_upload(model_name, dataset_name, config_file_list, repo_i
              # Fallback to single-process init (if run directly)
              print("Initializing dummy distributed group for single-process mode...")
              dist.init_process_group(
-                 backend='gloo', 
-                 init_method='tcp://127.0.0.1:12345', 
-                 rank=0, 
-                 world_size=1
+                backend='gloo', 
+                init_method='tcp://127.0.0.1:12345', 
+                rank=0, 
+                world_size=1
              )
     
     # Init seed
