@@ -84,56 +84,47 @@ class DeltaRewardCalculator:
 
     def compute_reward(self, student_lists, baseline_lists, ground_truth, alpha):
         """
-        Computes reward based on the RANK of the Delta Improvement within the group.
-        Range: [0.0, 1.0]
+        Hierarchical Reward:
+        1. Base = Delta NDCG.
+        2. Bonus = Delta Pop (Only if NDCG >= Baseline, and ONLY if Pop improved).
         """
-        batch_size, group_size, _ = student_lists.shape
-        
-        # --- 1. Calculate Raw Metrics ---
-        # [Batch, Group]
+        # --- 1. Calculate Deltas ---
         stud_ndcg = self.calc_ndcg(student_lists, ground_truth)
-        stud_pop  = self.get_batch_pop(student_lists)
+        base_ndcg = self.calc_ndcg(baseline_lists, ground_truth) # No grad needed usually, but safe to keep
         
-        with torch.no_grad():
-            # [Batch, 1]
-            base_ndcg = self.calc_ndcg(baseline_lists, ground_truth)
-            base_pop  = self.get_batch_pop(baseline_lists)
+        stud_pop = self.get_batch_pop(student_lists)
+        base_pop = self.get_batch_pop(baseline_lists)
 
-        # --- 2. Calculate Deltas ---
-        # We want to rank "How much did we IMPROVE?"
-        # Positive Delta = Good. Negative Delta = Bad.
-        
-        # Accuracy Delta: Higher is Better
+        # Relative Changes
         delta_ndcg = (stud_ndcg - base_ndcg)
+        delta_pop  = (base_pop - stud_pop) # Positive = Serendipity Improved
+
+        # --- 2. Hierarchical Logic ---
         
-        # Serendipity Delta: (Base - Stud). Higher is Better (Lower Student Pop)
-        delta_pop = (base_pop - stud_pop)
+        # A. The Gate: Did we maintain or improve accuracy?
+        # We use a float mask: 1.0 if passed, 0.0 if failed
+        accuracy_gate = (delta_ndcg >= 0).float()
         
-        # --- 3. Compute Ranks (The Magic Step) ---
-        # argsort().argsort() returns the rank index (0 to G-1)
-        # We apply this along the Group dimension (dim=1)
+        # B. The Bonus (Serendipity)
+        # User Requirement 1: "Do not penalty" -> We clamp min=0. 
+        # If delta_pop is negative (more popular), bonus is just 0. No punishment.
+        pop_bonus = torch.clamp(delta_pop, min=0.0)
         
-        # Rank 0 = Worst improvement (or biggest drop)
-        # Rank G-1 = Best improvement
-        rank_ndcg = delta_ndcg.argsort(dim=1).argsort(dim=1).float()
-        rank_pop  = delta_pop.argsort(dim=1).argsort(dim=1).float()
+        # User Requirement 2: "Only focus delta pop if ndcg > 0"
+        # We scale the bonus by alpha (or 1-alpha) to control magnitude relative to accuracy
+        # If gate is closed (0), this entire term vanishes.
+        weighted_bonus = (1 - alpha) * pop_bonus * accuracy_gate
         
-        # --- 4. Normalize Ranks to [0, 1] ---
-        # This makes the reward Unit-Free.
-        # We add 1e-8 to denominator to avoid div-by-zero if group_size=1
-        norm_rank_ndcg = rank_ndcg / (group_size - 1 + 1e-8)
-        norm_rank_pop  = rank_pop  / (group_size - 1 + 1e-8)
+        # --- 3. Total Reward ---
+        # Case Fail:   delta_ndcg (Negative) + 0             -> Pure Accuracy Penalty
+        # Case Pass:   delta_ndcg (Positive) + weighted_bonus -> Accuracy + Serendipity
         
-        # --- 5. Weighted Sum ---
-        # Since both are [0,1], alpha works strictly as a percentage mixer.
-        total_reward = (alpha * norm_rank_ndcg) + ((1 - alpha) * norm_rank_pop)
+        # Note: We weight delta_ndcg by 'alpha' to keep the scales comparable
+        base_reward = alpha * delta_ndcg
         
-        # --- 6. The "Tie-Breaker" (Optional but Recommended) ---
-        # If multiple items have identical NDCG (e.g., all 0), their ranks might be arbitrary.
-        # But usually argsort handles stability.
-        # We can rely on the fact that total_reward is now strictly bounded [0, 1].
+        total_reward = base_reward + weighted_bonus
         
-        # Success Rate (Did we actually beat the baseline absolute score?)
-        success_rate = (delta_ndcg >= 0).float().mean()
+        # Calculate Success Rate (How often did we unlock the gate?)
+        success_rate = accuracy_gate.mean()
         
         return total_reward, success_rate
