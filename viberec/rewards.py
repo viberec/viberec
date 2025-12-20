@@ -138,12 +138,12 @@ class DeltaRewardCalculator:
         # "Hard Gate": Only reward Serendipity/Popularity if NDCG improves or stays same.
         # If DeltaNDCG < 0 (Accuracy Drop), the second term becomes 0.
         # This forces the model to maintain accuracy first.
-        # "Hard Gate" Logic using torch.where (Element-wise If-Else)
-        # If DeltaNDCG >= 0 (Accuracy Maintained/Improved): Reward = Alpha * NDCG + (1-Alpha) * Pop
-        # Else (Accuracy Drop): Reward = Alpha * NDCG (Pop reward is ignored/zeroed)
-        full_reward = (alpha * delta_ndcg) + ((1 - alpha) * delta_pop * stud_ndcg)
+        # "Strict Gate": Only provide the composite reward if BOTH Accuracy and Serendipity improve.
+        # If either degrades (or stays same), we fall back to just the NDCG component (ignoring Pop).
+        full_reward = (alpha * delta_ndcg) + ((1 - alpha) * delta_pop)
         only_ndcg_reward = (alpha * delta_ndcg)
         
-        total_reward = torch.where(delta_ndcg >= 0, full_reward, only_ndcg_reward)
+        condition = (delta_ndcg >= 0) & (delta_pop >= 0)
+        total_reward = torch.where(condition, full_reward, only_ndcg_reward)
         
         return total_reward
