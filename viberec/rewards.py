@@ -141,7 +141,7 @@ class DeltaRewardCalculator:
         # "Hard Gate" Logic using torch.where (Element-wise If-Else)
         # If DeltaNDCG >= 0 (Accuracy Maintained/Improved): Reward = Alpha * NDCG + (1-Alpha) * Pop
         # Else (Accuracy Drop): Reward = Alpha * NDCG (Pop reward is ignored/zeroed)
-        full_reward = (alpha * delta_ndcg) + ((1 - alpha) * delta_pop)
+        full_reward = (alpha * delta_ndcg) + ((1 - alpha) * delta_pop * stud_ndcg)
         only_ndcg_reward = (alpha * delta_ndcg)
         
         total_reward = torch.where(delta_ndcg >= 0, full_reward, only_ndcg_reward)
