@@ -12,7 +12,7 @@ def objective(trial, config_path, base_config_path):
     # Define Search Space
     params = {
         'learning_rate': trial.suggest_categorical('learning_rate', [5e-6, 1e-5, 5e-5, 1e-4]),
-        'alpha': trial.suggest_categorical('alpha', [0.1, 0.3, 0.5, 0.7, 0.9]),
+        'alpha': trial.suggest_float('alpha', 0.9, 1.0, step=0.01),
         'kl_beta': trial.suggest_categorical('kl_beta', [0.01, 0.05, 0.1, 0.2, 0.5]),
         'group_size': trial.suggest_categorical('group_size', [4, 8, 16]),
         'epochs': 3 
