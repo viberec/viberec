@@ -130,20 +130,12 @@ class DeltaRewardCalculator:
         delta_pop  = torch.clamp(delta_pop, min=-1.0, max=1.0)
         
         # --- 4. Weighted Sum ---
-        # Revert gating: We rely on high alpha (e.g. 0.9) to balance the scales.
-        # If alpha is 0.9: 0.9 * DeltaNDCG + 0.1 * DeltaPop
-        # Tail collapse (NDCG=-1, Pop=1) => 0.9(-1) + 0.1(1) = -0.8 (Punished).
-        # Scaling DeltaPop by Student NDCG prevents "obscurity collapse"
-        # If Student's NDCG is low (poor relevance), the Serendipity reward is dampened to 0.
-        # "Hard Gate": Only reward Serendipity/Popularity if NDCG improves or stays same.
-        # If DeltaNDCG < 0 (Accuracy Drop), the second term becomes 0.
-        # This forces the model to maintain accuracy first.
-        # "Strict Gate": Only provide the composite reward if BOTH Accuracy and Serendipity improve.
-        # If either degrades (or stays same), we fall back to just the NDCG component (ignoring Pop).
+        # Strict Gate: Reward Serendipity ONLY if BOTH Accuracy and Serendipity improve.
+        # Otherwise, reward is based solely on Accuracy (NDCG).
         full_reward = (alpha * delta_ndcg) + ((1 - alpha) * delta_pop)
-        only_ndcg_reward = (alpha * delta_ndcg)
+        # only_ndcg_reward = (alpha * delta_ndcg)
         
         condition = (delta_ndcg >= 0) & (delta_pop >= 0)
-        total_reward = torch.where(condition, full_reward, only_ndcg_reward)
+        total_reward = torch.where(condition, full_reward, 0)
         
         return total_reward
