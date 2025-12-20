@@ -31,9 +31,21 @@ def run_rl_finetune(finetune_config_path, base_config_path="examples/config/ml10
     config_file_list = [base_config_path, finetune_config_path]
     
     # --- Standard RecBole Workflow Start ---
+    # Load base config to extract model/dataset
+    base_model_cfg = {}
+    if base_config_path and os.path.exists(base_config_path):
+        with open(base_config_path, 'r') as f:
+            base_model_cfg = yaml.safe_load(f) or {}
+
+    # Use arguments if present, else try config files, else try base config content, else default
+    # Note: Config() will look into files, but passing explicit None might be safer to let it do its job, 
+    # BUT here we want to establish "run_name" correctly too.
+    dataset_arg = kwargs.get('dataset', ft_config.get('dataset', base_model_cfg.get('dataset', None)))
+    model_arg = kwargs.get('model', ft_config.get('model', base_model_cfg.get('model', 'SASRec')))
+
     config = Config(
-        model=kwargs.get('model', ft_config.get('model', 'SASRec')),
-        dataset=kwargs.get('dataset', ft_config.get('dataset', 'ml-100k')),
+        model=model_arg,
+        dataset=dataset_arg, 
         config_file_list=config_file_list,
         config_dict={
             'log_wandb': True, 
