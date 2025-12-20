@@ -15,7 +15,7 @@ def objective(trial, config_path, base_config_path):
         'alpha': trial.suggest_categorical('alpha', [0.1, 0.3, 0.5, 0.7, 0.9]),
         'kl_beta': trial.suggest_categorical('kl_beta', [0.01, 0.05, 0.1, 0.2, 0.5]),
         'group_size': trial.suggest_categorical('group_size', [4, 8, 16]),
-        'epochs': 10 
+        'epochs': 3 
     }
     
     print(f"\n[Optuna Trial {trial.number}] Params: {params}")
