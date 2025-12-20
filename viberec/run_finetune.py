@@ -30,12 +30,6 @@ def run_rl_finetune(finetune_config_path, base_config_path="examples/config/ml10
     
     config_file_list = [base_config_path, finetune_config_path]
     
-    alpha_val = kwargs.get('alpha', ft_config.get('alpha', 0.5))
-    run_name = f"{kwargs.get('dataset', ft_config.get('dataset', 'ml-100k'))}-{kwargs.get('model', ft_config.get('model', 'SASRec'))}-GRPO-Alpha{alpha_val}"
-    
-    # Set WandB Name via Environment Variable (Prioritized by wandb.init)
-    os.environ["WANDB_NAME"] = run_name
-    
     # --- Standard RecBole Workflow Start ---
     config = Config(
         model=kwargs.get('model', ft_config.get('model', 'SASRec')),
@@ -46,6 +40,11 @@ def run_rl_finetune(finetune_config_path, base_config_path="examples/config/ml10
             'wandb_project': 'viberec',
         }
     )
+    
+    # Set WandB Name dynamically from Config
+    alpha_val = kwargs.get('alpha', ft_config.get('finetune', {}).get('alpha', 0.5))
+    run_name = f"{config['dataset']}-{config['model']}-GRPO-Alpha{alpha_val}"
+    os.environ["WANDB_NAME"] = run_name
     
     model_name = config['model']
     dataset_name = config['dataset']

@@ -2,7 +2,7 @@ import optuna
 import logging
 from viberec.run_finetune import run_rl_finetune
 
-def objective(trial, config_path):
+def objective(trial, config_path, base_config_path):
     """
     Optuna objective function for Multi-Objective Optimization.
     Objectives:
@@ -15,7 +15,7 @@ def objective(trial, config_path):
         'alpha': trial.suggest_categorical('alpha', [0.1, 0.3, 0.5, 0.7, 0.9]),
         'kl_beta': trial.suggest_categorical('kl_beta', [0.01, 0.05, 0.1, 0.2, 0.5]),
         'group_size': trial.suggest_categorical('group_size', [4, 8, 16]),
-        'epochs': 3 
+        'epochs': 10 
     }
     
     print(f"\n[Optuna Trial {trial.number}] Params: {params}")
@@ -26,6 +26,7 @@ def objective(trial, config_path):
         # We suppress output to keep logs clean(er) if possible, but run_rl_finetune prints a lot.
         test_result = run_rl_finetune(
             finetune_config_path=config_path, 
+            base_config_path=base_config_path,
             push_to_hub=False,
             **params
         )
@@ -44,12 +45,12 @@ def objective(trial, config_path):
         # Return worst case: Low NDCG, High Pop
         return 0.0, 9999.0
 
-def run_bayes_tuning(config_path="examples/config/ml100k_sasrec_grpo.yaml", n_trials=20, output_file='optuna_results.csv'):
+def run_bayes_tuning(config_path="examples/config/ml100k_sasrec_grpo.yaml", base_config_path="examples/config/ml100k_sasrec.yaml", n_trials=20, output_file='optuna_results.csv'):
     # Directions: Maximize NDCG, Minimize AvgPop
     study = optuna.create_study(directions=["maximize", "minimize"])
     
     print(f"Starting Optuna Multi-Objective Optimization for {n_trials} trials...")
-    study.optimize(lambda trial: objective(trial, config_path), n_trials=n_trials)
+    study.optimize(lambda trial: objective(trial, config_path, base_config_path), n_trials=n_trials)
     
     print("\n=== Optuna Optimization Complete ===")
     print(f"Number of finished trials: {len(study.trials)}")
@@ -83,6 +84,7 @@ def run_bayes_tuning(config_path="examples/config/ml100k_sasrec_grpo.yaml", n_tr
     try:
         run_rl_finetune(
             finetune_config_path=config_path,
+            base_config_path=base_config_path,
             push_to_hub=True,
             **best_candidate.params
         )

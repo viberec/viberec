@@ -9,6 +9,7 @@ def main():
 
     run_bayes_tuning(
         config_path="examples/config/ml_1m_sasrec_grpo.yaml",
+        base_config_path="examples/config/ml_1m_sasrec.yaml",
         n_trials=args.n_trials,
         output_file=args.output_file
     )
