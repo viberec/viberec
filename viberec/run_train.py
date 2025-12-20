@@ -10,6 +10,9 @@ from recbole.utils import init_logger, get_model, get_trainer, init_seed, get_fl
 from recbole.data.transform import construct_transform
 from recbole.quick_start import load_data_and_model
 
+import torch.distributed as dist
+import torch
+
 def verify_hf_model(repo_id, filename):
     print(f"\n=== Verifying Model from Hugging Face: {repo_id}/{filename} ===")
     try:
@@ -35,12 +38,20 @@ def verify_hf_model(repo_id, filename):
         return False
 
 def run_experiment_and_upload(model_name, dataset_name, config_file_list, repo_id=None):
-    # Load config
     config = Config(
         model=model_name,
         dataset=dataset_name.lower(),
         config_file_list=config_file_list,
     )
+    
+    # Initialize distributed process group if needed (fixes dataset download barrier error)
+    if dist.is_available() and not dist.is_initialized():
+        backend = 'nccl' if torch.cuda.is_available() else 'gloo'
+        try:
+            dist.init_process_group(backend=backend)
+        except Exception as e:
+            # Fallback or ignore if initialization fails (e.g. running locally without torchrun)
+            print(f"Distributed init warning: {e}")
     
     # Init seed
     init_seed(config["seed"], config["reproducibility"])
