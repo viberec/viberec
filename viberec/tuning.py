@@ -2,7 +2,7 @@ import optuna
 import logging
 from viberec.run_finetune import run_rl_finetune
 
-def objective(trial):
+def objective(trial, config_path):
     """
     Optuna objective function for Multi-Objective Optimization.
     Objectives:
@@ -18,8 +18,6 @@ def objective(trial):
         'epochs': 3 
     }
     
-    finetune_config_path = "examples/config/ml100k_sasrec_grpo.yaml"
-    
     print(f"\n[Optuna Trial {trial.number}] Params: {params}")
     
     try:
@@ -27,7 +25,7 @@ def objective(trial):
         # run_rl_finetune returns a dictionary of test results
         # We suppress output to keep logs clean(er) if possible, but run_rl_finetune prints a lot.
         test_result = run_rl_finetune(
-            finetune_config_path=finetune_config_path, 
+            finetune_config_path=config_path, 
             push_to_hub=False,
             **params
         )
@@ -46,12 +44,12 @@ def objective(trial):
         # Return worst case: Low NDCG, High Pop
         return 0.0, 9999.0
 
-def run_bayes_tuning(n_trials=20, output_file='optuna_results.csv'):
+def run_bayes_tuning(config_path="examples/config/ml100k_sasrec_grpo.yaml", n_trials=20, output_file='optuna_results.csv'):
     # Directions: Maximize NDCG, Minimize AvgPop
     study = optuna.create_study(directions=["maximize", "minimize"])
     
     print(f"Starting Optuna Multi-Objective Optimization for {n_trials} trials...")
-    study.optimize(objective, n_trials=n_trials)
+    study.optimize(lambda trial: objective(trial, config_path), n_trials=n_trials)
     
     print("\n=== Optuna Optimization Complete ===")
     print(f"Number of finished trials: {len(study.trials)}")
@@ -84,7 +82,7 @@ def run_bayes_tuning(n_trials=20, output_file='optuna_results.csv'):
     print("\nRetraining and Uploading Best Candidate...")
     try:
         run_rl_finetune(
-            finetune_config_path="examples/config/ml100k_sasrec_grpo.yaml",
+            finetune_config_path=config_path,
             push_to_hub=True,
             **best_candidate.params
         )

@@ -1,0 +1,15 @@
+# Fine-tuning configuration for GRPO on ML-1M
+finetune:
+  repo_id: "viberec/ML-1M-SASRec"
+  epochs: 3
+  k: 10
+  learning_rate: 0.00005
+  # Logging interval in steps
+  log_interval: 10
+  # Exploration parameter
+  alpha: 0.9
+  
+  # GRPO Specific Parameters
+  group_size: 16 
+  kl_beta: 0.1
+  clip_grad_norm: 1.0
