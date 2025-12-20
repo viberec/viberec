@@ -143,6 +143,6 @@ class DeltaRewardCalculator:
         )
         
         # Calculate "Success Rate" for logging (How often we match/beat baseline)
-        success_rate = (delta_ndcg >= 0 & delta_pop >= 0).float().mean()
+        success_rate = ((delta_ndcg >= 0) & (delta_pop >= 0)).float().mean()
         
         return torch.clamp(total_reward, -1.0, 1.0), success_rate
