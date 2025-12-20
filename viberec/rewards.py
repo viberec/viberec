@@ -129,20 +129,23 @@ class DeltaRewardCalculator:
         delta_ndcg = torch.clamp(delta_ndcg, min=-1.0, max=1.0)
         delta_pop  = torch.clamp(delta_pop, min=-1.0, max=1.0)
         
-        # --- 3. Weighted Full Reward (Before Floor) ---
+        # --- 4. Safety Anchor & Success Logic ---
+        
+        # 1. Base Logic: If we lose accuracy, penalty is delta_ndcg * 2 ("Safety Anchor")
+        penalty = delta_ndcg * 2.0 
+        
+        # 2. Success Logic: If we maintain/improve accuracy
+        # Reward = alpha * Accuracy_Gain + (1-alpha) * Pop_Reduction
         full_reward = (alpha * delta_ndcg) + ((1 - alpha) * delta_pop)
         
-        # --- 4. The Safety Floor ---
-        # Logic: 
-        # If delta_ndcg < 0: Penalty = delta_ndcg (Negative) -> Signal to get back to baseline
-        # If delta_ndcg >= 0: Reward = full_reward (Weighted trade-off)
+        # 3. Apply the Safety Floor
         total_reward = torch.where(
-            (delta_ndcg >= 0) & (delta_pop >= 0), 
-            full_reward, 
-            delta_ndcg 
+            delta_ndcg >= 0, 
+            full_reward + 0.05, # Small constant bonus for being accurate
+            penalty
         )
         
-        # Calculate "Success Rate" for logging (How often we match/beat baseline)
-        success_rate = ((delta_ndcg >= 0) & (delta_pop >= 0)).float().mean()
+        # Success is simply: Did we maintain accuracy?
+        success_rate = (delta_ndcg >= 0).float().mean()
         
         return torch.clamp(total_reward, -1.0, 1.0), success_rate
