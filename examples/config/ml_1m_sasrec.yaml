@@ -25,6 +25,8 @@ item_inter_num_interval: "[10,inf)"
 
 # Training and Evaluation
 epochs: 500
+# Clip gradient norm to prevent explosion (important for stability or transformers)
+clip_grad_norm: 1.0
 train_batch_size: 12288
 eval_batch_size: 12288
 metrics: [NDCG, Hit, AveragePopularity, GiniIndex, ItemCoverage, ShannonEntropy, TailPercentage]

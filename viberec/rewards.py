@@ -135,6 +135,15 @@ class DeltaRewardCalculator:
         # Tail collapse (NDCG=-1, Pop=1) => 0.9(-1) + 0.1(1) = -0.8 (Punished).
         # Scaling DeltaPop by Student NDCG prevents "obscurity collapse"
         # If Student's NDCG is low (poor relevance), the Serendipity reward is dampened to 0.
-        total_reward = (alpha * delta_ndcg) + ((1 - alpha) * delta_pop * stud_ndcg)
+        # "Hard Gate": Only reward Serendipity/Popularity if NDCG improves or stays same.
+        # If DeltaNDCG < 0 (Accuracy Drop), the second term becomes 0.
+        # This forces the model to maintain accuracy first.
+        # "Hard Gate" Logic using torch.where (Element-wise If-Else)
+        # If DeltaNDCG >= 0 (Accuracy Maintained/Improved): Reward = Alpha * NDCG + (1-Alpha) * Pop
+        # Else (Accuracy Drop): Reward = Alpha * NDCG (Pop reward is ignored/zeroed)
+        full_reward = (alpha * delta_ndcg) + ((1 - alpha) * delta_pop)
+        only_ndcg_reward = (alpha * delta_ndcg)
+        
+        total_reward = torch.where(delta_ndcg >= 0, full_reward, only_ndcg_reward)
         
         return total_reward
