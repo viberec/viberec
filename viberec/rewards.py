@@ -133,6 +133,8 @@ class DeltaRewardCalculator:
         # Revert gating: We rely on high alpha (e.g. 0.9) to balance the scales.
         # If alpha is 0.9: 0.9 * DeltaNDCG + 0.1 * DeltaPop
         # Tail collapse (NDCG=-1, Pop=1) => 0.9(-1) + 0.1(1) = -0.8 (Punished).
-        total_reward = (alpha * delta_ndcg) + ((1 - alpha) * delta_pop)
+        # Scaling DeltaPop by Student NDCG prevents "obscurity collapse"
+        # If Student's NDCG is low (poor relevance), the Serendipity reward is dampened to 0.
+        total_reward = (alpha * delta_ndcg) + ((1 - alpha) * delta_pop * stud_ndcg)
         
         return total_reward
