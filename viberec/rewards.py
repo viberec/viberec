@@ -137,7 +137,7 @@ class DeltaRewardCalculator:
         # If delta_ndcg < 0: Penalty = delta_ndcg (Negative) -> Signal to get back to baseline
         # If delta_ndcg >= 0: Reward = full_reward (Weighted trade-off)
         total_reward = torch.where(
-            delta_ndcg >= 0 & delta_pop >= 0, 
+            (delta_ndcg >= 0) & (delta_pop >= 0), 
             full_reward, 
             delta_ndcg 
         )
