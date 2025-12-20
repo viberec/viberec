@@ -120,8 +120,8 @@ class DeltaRewardCalculator:
         weighted_bonus = (1 - alpha) * pop_bonus * accuracy_gate
         
         # --- 4. Total Reward ---
-        # Base: Accuracy Gradient (Always Active)
-        base_reward = alpha * delta_ndcg
+        # Base: Accuracy Gradient (Positive Only - No Punishment)
+        base_reward = alpha * torch.clamp(delta_ndcg, min=0.0)
         
         total_reward = base_reward + weighted_bonus
         
