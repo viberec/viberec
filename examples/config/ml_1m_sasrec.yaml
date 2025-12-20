@@ -1,3 +1,5 @@
+model: SASRec
+dataset: ml-1m
 field_separator: "\t"
 seq_separator: " "
 USER_ID_FIELD: user_id
