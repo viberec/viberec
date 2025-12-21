@@ -91,43 +91,42 @@ class DeltaRewardCalculator:
         base_pop = self.get_batch_pop(baseline_lists)
 
         # --- 2. Deltas ---
-        # Accuracy: Range [-1.0, 1.0]
         delta_ndcg = (stud_ndcg - base_ndcg)
-        
-        # Popularity: Range [-inf, 1.0] (Percentage Improvement)
+        # Pop Delta (Percentage): Positive = Good (Less Popular)
         delta_pop_pct = (base_pop - stud_pop) / (base_pop + 1e-9)
 
-        # --- 3. The "Anti-Erosion" Gates ---
+        # --- 3. The New Accuracy Logic (Solves the "Zero-Safe" Trap) ---
+        # We start with the ABSOLUTE score (stud_ndcg).
+        # Then we subtract the failure margin if we lost to the teacher.
+        # Logic: Reward = stud_ndcg + min(0, delta_ndcg)
+        # If Stud=0.4, Base=0.5 -> R = 0.4 - 0.1 = 0.3 (Positive! Better than 0)
+        # If Stud=0.0, Base=0.0 -> R = 0.0 + 0.0 = 0.0
         
-        # Gate A: Don't be worse than teacher
-        # Gate B: Don't reward serendipity if the list is garbage (NDCG=0)
-        # Both must be true to "unlock" the popularity game.
-        is_safe_and_relevant = (delta_ndcg >= 0) & (stud_ndcg > 0)
+        # We apply alpha here to balance it with serendipity later
+        acc_base = stud_ndcg
+        acc_penalty = torch.clamp(delta_ndcg, max=0.0) 
         
-        # --- 4. Reward Components ---
+        # The Accuracy Term:
+        # We double-count the penalty slightly to keep the "Anchor" strong,
+        # but the base `stud_ndcg` ensures we never prefer 0 over a decent try.
+        acc_term = alpha * (acc_base + acc_penalty)
         
-        # Component A: Accuracy (The Driver)
-        # If delta_ndcg < 0, this provides the PENALTY to fix erosion.
-        acc_term = alpha * delta_ndcg
+        # --- 4. The Serendipity Logic (Double Gated) ---
+        # You only get serendipity if:
+        # 1. You found the item (stud_ndcg > 0)
+        # 2. You didn't lose significant accuracy (delta_ndcg >= -0.05)
+        # We allow a tiny slack (-0.05) because acc_term is already punishing the drop.
         
-        # Component B: Serendipity (The Passenger)
-        # We allow this term to be negative (penalty for being boring) 
-        # OR positive (reward for being cool), but ONLY if gated.
-        pop_term = (1 - alpha) * delta_pop_pct
+        is_relevant = (stud_ndcg > 0)
+        is_not_terrible = (delta_ndcg >= -0.05)
+        gate_open = is_relevant & is_not_terrible
         
-        # --- 5. Final Logic ---
-        # If Gated: Total = Acc + Pop
-        # If Not Gated: Total = Acc Only (Pop term is silenced)
+        pop_term = (1 - alpha) * delta_pop_pct * gate_open.float()
         
-        # Why this works:
-        # 1. If Acc drops (Delta < 0) -> Gated is False -> Reward = Negative Acc Penalty. (Fixes Erosion)
-        # 2. If Acc match (Delta = 0) but Miss (Stud=0) -> Gated is False -> Reward = 0. (Fixes Lucky Miss)
-        # 3. If Acc match (Delta = 0) and Hit (Stud>0) -> Gated is True -> Reward = Pop Term. (Valid Serendipity)
+        # --- 5. Total Reward ---
+        total_reward = acc_term + pop_term
         
-        total_reward = torch.where(
-            is_safe_and_relevant,
-            acc_term + pop_term,
-            acc_term
-        )
+        # Clip for stability
+        total_reward = torch.clamp(total_reward, -1.0, 1.0)
         
-        return torch.clamp(total_reward, -1.0, 1.0), (stud_ndcg > 0).float().mean()
+        return total_reward, is_relevant.float().mean()
