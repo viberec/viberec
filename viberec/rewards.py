@@ -83,50 +83,60 @@ class DeltaRewardCalculator:
         return dcg / idcg
 
     def compute_reward(self, student_lists, baseline_lists, ground_truth, alpha):
-        # alpha is now the "Amplification Factor" (e.g., 0.5)
-        # It controls how much popularity can boost/nerf the score.
-        
-        # --- 1. The Foundation (Sparse Signal) ---
+        # --- 1. Metrics ---
         stud_ndcg = self.calc_ndcg(student_lists, ground_truth)
-        # Range: [0.0, 1.0]
+        base_ndcg = self.calc_ndcg(baseline_lists, ground_truth)
         
-        # --- 2. The Modulator (Dense Signal) ---
         stud_pop = self.get_batch_pop(student_lists)
-        
-        with torch.no_grad():
-            base_pop = self.get_batch_pop(baseline_lists)
+        base_pop = self.get_batch_pop(baseline_lists)
 
-        # Calculate Percentage Change
-        # Positive = Improved Serendipity (Less Popular)
-        # Negative = More Popular
-        delta_pop_pct = (base_pop - stud_pop) / (base_pop + 1e-9)
+        # --- 2. Raw Deltas ---
+        # Accuracy Delta (Small scale: ~0.0 to 1.0)
+        delta_ndcg = (stud_ndcg - base_ndcg)
         
-        # --- 3. Scale Fix: Tanh Saturation ---
-        # This is the magic step.
-        # tanh(0.1) ≈ 0.1, but tanh(5.0) ≈ 1.0.
-        # It linearly rewards small improvements but aggressively caps outliers.
-        # The scale is now strictly [-1.0, 1.0].
-        pop_signal = torch.tanh(delta_pop_pct)
+        # Popularity Delta (Huge scale: ~0 to 1000+)
+        # We use raw counts because Scale Matching handles the unit conversion.
+        # Positive = Improvement (Less Popular)
+        delta_pop = (base_pop - stud_pop) 
+
+        # --- 3. Dynamic Scale Matching (No Magic Numbers) ---
+        # We calculate the Standard Deviation of both metrics across the entire batch.
+        # This tells us the "typical" fluctuation magnitude for this training step.
         
-        # --- 4. The Multiplicative Logic ---
-        # Formula: Reward = NDCG * (1 + alpha * PopSignal)
+        std_ndcg = torch.std(delta_ndcg)
+        std_pop  = torch.std(delta_pop)
         
-        # Examples with alpha=0.5:
-        # A. Hit Item (1.0), Neutral Pop (0.0) -> R = 1.0 * (1 + 0) = 1.0
-        # B. Hit Item (1.0), Great Pop (+1.0)  -> R = 1.0 * (1 + 0.5) = 1.5 (Bonus!)
-        # C. Hit Item (1.0), Bad Pop (-1.0)    -> R = 1.0 * (1 - 0.5) = 0.5 (Dampened, but NOT Negative)
-        # D. Miss Item (0.0), Great Pop (+1.0) -> R = 0.0 * (1.5) = 0.0 (Garbage filtered)
+        # Calculate the Ratio: "How much bigger is Pop than NDCG?"
+        # If Pop varies by 500 and NDCG varies by 0.1, ratio is ~0.0002
+        # We use detach() because we don't want to backprop through the std calculation.
+        scale_ratio = (std_ndcg / (std_pop + 1e-9)).detach()
         
-        modulation = 1.0 + ((1 - alpha) * pop_signal)
+        # Normalize Popularity to match Accuracy's physics
+        # Now, a "big" jump in popularity is mathematically equal to a "big" jump in accuracy.
+        normalized_pop = delta_pop * scale_ratio
         
-        # Ensure modulation doesn't flip sign (if alpha > 1, bad pop could make reward negative)
-        # We clip modulation to [0.1, 2.0] to be safe.
-        modulation = torch.clamp(modulation, min=0.1, max=2.0)
+        # --- 4. Total Reward Calculation ---
         
-        total_reward = stud_ndcg * modulation
+        # Term 1: Accuracy (Weighted by Alpha)
+        # We reinforce the absolute hit (stud_ndcg) and the relative gain (delta_ndcg)
+        # to prevent the "Zero-Safe" trap.
+        acc_term = alpha * (stud_ndcg + delta_ndcg)
         
-        # --- 5. Success Rate ---
-        # Strictly finding the item
-        success_rate = (stud_ndcg > 0).float().mean()
+        # Term 2: Serendipity (Weighted by 1-Alpha)
+        # We use the Normalized Pop, so we don't need magic damping factors.
+        pop_term = (1 - alpha) * normalized_pop
         
-        return total_reward, success_rate
+        # --- 5. The "Relevance Gate" ---
+        # Even with scaling, we only want to play the serendipity game 
+        # if the item is relevant.
+        is_relevant = (stud_ndcg > 0).float()
+        
+        # Final Sum:
+        # If irrelevant: Reward = 0 (Total failure, prevents exploitation of garbage)
+        # If relevant: Reward = Acc + Normalized_Pop
+        total_reward = (acc_term + pop_term) * is_relevant
+        
+        # Safety Clamp (Just to keep PPO stable)
+        total_reward = torch.clamp(total_reward, -1.0, 1.0)
+        
+        return total_reward, is_relevant.mean()

@@ -15,7 +15,7 @@ def objective(trial, config_path, base_config_path):
         # Alpha should probably be lower if you use the "Safety Floor" reward
         'alpha': trial.suggest_categorical('alpha', [0.9, 0.95, 0.99]),
         # Increase Group Size for better Advantage estimates
-        'group_size': trial.suggest_categorical('group_size', [8, 16]),
+        'group_size': trial.suggest_categorical('group_size', [16, 32]),
         'kl_beta': trial.suggest_categorical('kl_beta', [0.5, 0.7, 0.9]),
         'epochs': 5 # Give it a few more epochs to recover from the initial exploration
     }
