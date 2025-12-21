@@ -83,50 +83,50 @@ class DeltaRewardCalculator:
         return dcg / idcg
 
     def compute_reward(self, student_lists, baseline_lists, ground_truth, alpha):
-        # --- 1. Metrics ---
+        # alpha is now the "Amplification Factor" (e.g., 0.5)
+        # It controls how much popularity can boost/nerf the score.
+        
+        # --- 1. The Foundation (Sparse Signal) ---
         stud_ndcg = self.calc_ndcg(student_lists, ground_truth)
-        base_ndcg = self.calc_ndcg(baseline_lists, ground_truth)
+        # Range: [0.0, 1.0]
         
+        # --- 2. The Modulator (Dense Signal) ---
         stud_pop = self.get_batch_pop(student_lists)
-        base_pop = self.get_batch_pop(baseline_lists)
+        
+        with torch.no_grad():
+            base_pop = self.get_batch_pop(baseline_lists)
 
-        # --- 2. Deltas ---
-        delta_ndcg = (stud_ndcg - base_ndcg)
-        # Pop Delta (Percentage): Positive = Good (Less Popular)
+        # Calculate Percentage Change
+        # Positive = Improved Serendipity (Less Popular)
+        # Negative = More Popular
         delta_pop_pct = (base_pop - stud_pop) / (base_pop + 1e-9)
-
-        # --- 3. The New Accuracy Logic (Solves the "Zero-Safe" Trap) ---
-        # We start with the ABSOLUTE score (stud_ndcg).
-        # Then we subtract the failure margin if we lost to the teacher.
-        # Logic: Reward = stud_ndcg + min(0, delta_ndcg)
-        # If Stud=0.4, Base=0.5 -> R = 0.4 - 0.1 = 0.3 (Positive! Better than 0)
-        # If Stud=0.0, Base=0.0 -> R = 0.0 + 0.0 = 0.0
         
-        # We apply alpha here to balance it with serendipity later
-        acc_base = stud_ndcg
-        acc_penalty = torch.clamp(delta_ndcg, max=0.0) 
+        # --- 3. Scale Fix: Tanh Saturation ---
+        # This is the magic step.
+        # tanh(0.1) ≈ 0.1, but tanh(5.0) ≈ 1.0.
+        # It linearly rewards small improvements but aggressively caps outliers.
+        # The scale is now strictly [-1.0, 1.0].
+        pop_signal = torch.tanh(delta_pop_pct)
         
-        # The Accuracy Term:
-        # We double-count the penalty slightly to keep the "Anchor" strong,
-        # but the base `stud_ndcg` ensures we never prefer 0 over a decent try.
-        acc_term = alpha * (acc_base + acc_penalty)
+        # --- 4. The Multiplicative Logic ---
+        # Formula: Reward = NDCG * (1 + alpha * PopSignal)
         
-        # --- 4. The Serendipity Logic (Double Gated) ---
-        # You only get serendipity if:
-        # 1. You found the item (stud_ndcg > 0)
-        # 2. You didn't lose significant accuracy (delta_ndcg >= -0.05)
-        # We allow a tiny slack (-0.05) because acc_term is already punishing the drop.
+        # Examples with alpha=0.5:
+        # A. Hit Item (1.0), Neutral Pop (0.0) -> R = 1.0 * (1 + 0) = 1.0
+        # B. Hit Item (1.0), Great Pop (+1.0)  -> R = 1.0 * (1 + 0.5) = 1.5 (Bonus!)
+        # C. Hit Item (1.0), Bad Pop (-1.0)    -> R = 1.0 * (1 - 0.5) = 0.5 (Dampened, but NOT Negative)
+        # D. Miss Item (0.0), Great Pop (+1.0) -> R = 0.0 * (1.5) = 0.0 (Garbage filtered)
         
-        is_relevant = (stud_ndcg > 0)
-        is_not_terrible = (delta_ndcg >= -0.05)
-        gate_open = is_relevant & is_not_terrible
+        modulation = 1.0 + ((1 - alpha) * pop_signal)
         
-        pop_term = (1 - alpha) * delta_pop_pct * gate_open.float()
+        # Ensure modulation doesn't flip sign (if alpha > 1, bad pop could make reward negative)
+        # We clip modulation to [0.1, 2.0] to be safe.
+        modulation = torch.clamp(modulation, min=0.1, max=2.0)
         
-        # --- 5. Total Reward ---
-        total_reward = acc_term + pop_term
+        total_reward = stud_ndcg * modulation
         
-        # Clip for stability
-        total_reward = torch.clamp(total_reward, -1.0, 1.0)
+        # --- 5. Success Rate ---
+        # Strictly finding the item
+        success_rate = (stud_ndcg > 0).float().mean()
         
-        return total_reward, is_relevant.float().mean()
+        return total_reward, success_rate
