@@ -83,53 +83,55 @@ class DeltaRewardCalculator:
         return dcg / idcg
 
     def compute_reward(self, student_lists, baseline_lists, ground_truth, alpha):
-        # --- 1. Calculate Raw Metrics ---
+        # --- 1. Calculate Deltas ---
         stud_ndcg = self.calc_ndcg(student_lists, ground_truth)
-        base_ndcg = self.calc_ndcg(baseline_lists, ground_truth) # [Batch, 1]
+        base_ndcg = self.calc_ndcg(baseline_lists, ground_truth)
         
         stud_pop = self.get_batch_pop(student_lists)
-        base_pop = self.get_batch_pop(baseline_lists) # [Batch, 1]
+        base_pop = self.get_batch_pop(baseline_lists)
 
-        # --- 2. Calculate Deltas (FIXED UNITS) ---
-        
         # Accuracy Delta: Range [-1.0, 1.0]
+        # Negative if Student < Baseline
         delta_ndcg = (stud_ndcg - base_ndcg)
         
-        # Popularity Delta: Convert to PERCENTAGE IMPROVEMENT
-        # Formula: (Base - Student) / Base
-        # Range: usually [0.0, 1.0] (if less popular). 
-        # Can be negative if student is MORE popular.
+        # Popularity Delta (Percentage): Range [-inf, 1.0]
+        # Positive if Less Popular (Good). Negative if More Popular (Bad).
         delta_pop_pct = (base_pop - stud_pop) / (base_pop + 1e-9)
 
-        # --- 3. Hierarchical Logic (FIXED GATE) ---
+        # --- 2. Hierarchical Logic ---
         
-        # A. The Gate: 
-        # Condition 1: Must not be worse than baseline (delta_ndcg >= 0)
-        # Condition 2: MUST BE RELEVANT (stud_ndcg > 0) <--- CRITICAL FIX
-        # This prevents the "0 >= 0" loophole where garbage gets rewarded.
-        gate_open = (delta_ndcg >= 0) & (stud_ndcg > 0)
-        accuracy_gate = gate_open.float()
+        # A. The Gate: Did we maintain accuracy?
+        # We allow a tiny margin of error (-0.001) to keep gradients flowing near the boundary
+        pass_gate = (delta_ndcg >= -0.001)
         
-        # B. The Bonus (Serendipity)
-        # "No Penalty" -> Clamp min=0
-        # "Normalized" -> Use delta_pop_pct
-        pop_bonus = torch.clamp(delta_pop_pct, min=0.0)
+        # --- 3. Reward Calculation ---
         
-        # Scale bonus to be comparable to accuracy
-        # Since pop_pct is [0,1] and ndcg is [0,1], we can trust alpha now.
-        weighted_bonus = (1 - alpha) * pop_bonus * accuracy_gate
+        # Term 1: Accuracy (Symmetric)
+        # If delta_ndcg is negative, this is a PENALTY. 
+        # This solves "ensure don't hurt base model performance".
+        acc_term = alpha * delta_ndcg
         
-        # --- 4. Total Reward ---
-        # Base: Accuracy Gradient (Positive Only - No Punishment)
-        base_reward = alpha * torch.clamp(delta_ndcg, min=0.0)
+        # Term 2: Serendipity (Conditional)
+        # We only consider serendipity if the accuracy is acceptable.
+        # We do NOT clamp min=0. If the model becomes more popular (delta_pop_pct < 0),
+        # this term becomes negative, reducing the total reward.
+        # This solves the "Pop 1639" explosion.
+        pop_term = (1 - alpha) * delta_pop_pct
         
-        total_reward = base_reward + weighted_bonus
+        # Apply Logic:
+        # If Pass: Reward = Acc + Pop (Trade-off allowed)
+        # If Fail: Reward = Acc only (Pure Penalty for failing accuracy)
+        total_reward = torch.where(
+            pass_gate,
+            acc_term + pop_term,
+            acc_term
+        )
         
-        # --- 5. Safety Clamp ---
-        # Keep reward in [-1, 1] for stable gradients
+        # --- 4. Safety ---
+        # Clamp to prevent gradient explosions from rare outliers
         total_reward = torch.clamp(total_reward, -1.0, 1.0)
         
-        # Success Rate: How often did we get the bonus?
-        success_rate = accuracy_gate.mean()
+        # Success Rate: Strictly beating baseline accuracy
+        success_rate = (delta_ndcg > 0).float().mean()
         
         return total_reward, success_rate
