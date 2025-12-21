@@ -83,55 +83,51 @@ class DeltaRewardCalculator:
         return dcg / idcg
 
     def compute_reward(self, student_lists, baseline_lists, ground_truth, alpha):
-        # --- 1. Calculate Deltas ---
+        # --- 1. Metrics ---
         stud_ndcg = self.calc_ndcg(student_lists, ground_truth)
         base_ndcg = self.calc_ndcg(baseline_lists, ground_truth)
         
         stud_pop = self.get_batch_pop(student_lists)
         base_pop = self.get_batch_pop(baseline_lists)
 
-        # Accuracy Delta: Range [-1.0, 1.0]
-        # Negative if Student < Baseline
+        # --- 2. Deltas ---
+        # Accuracy: Range [-1.0, 1.0]
         delta_ndcg = (stud_ndcg - base_ndcg)
         
-        # Popularity Delta (Percentage): Range [-inf, 1.0]
-        # Positive if Less Popular (Good). Negative if More Popular (Bad).
+        # Popularity: Range [-inf, 1.0] (Percentage Improvement)
         delta_pop_pct = (base_pop - stud_pop) / (base_pop + 1e-9)
 
-        # --- 2. Hierarchical Logic ---
+        # --- 3. The "Anti-Erosion" Gates ---
         
-        # A. The Gate: Did we maintain accuracy?
-        # We allow a tiny margin of error (-0.001) to keep gradients flowing near the boundary
-        pass_gate = (delta_ndcg >= -0.001)
+        # Gate A: Don't be worse than teacher
+        # Gate B: Don't reward serendipity if the list is garbage (NDCG=0)
+        # Both must be true to "unlock" the popularity game.
+        is_safe_and_relevant = (delta_ndcg >= 0) & (stud_ndcg > 0)
         
-        # --- 3. Reward Calculation ---
+        # --- 4. Reward Components ---
         
-        # Term 1: Accuracy (Symmetric)
-        # If delta_ndcg is negative, this is a PENALTY. 
-        # This solves "ensure don't hurt base model performance".
+        # Component A: Accuracy (The Driver)
+        # If delta_ndcg < 0, this provides the PENALTY to fix erosion.
         acc_term = alpha * delta_ndcg
         
-        # Term 2: Serendipity (Conditional)
-        # We only consider serendipity if the accuracy is acceptable.
-        # We do NOT clamp min=0. If the model becomes more popular (delta_pop_pct < 0),
-        # this term becomes negative, reducing the total reward.
-        # This solves the "Pop 1639" explosion.
+        # Component B: Serendipity (The Passenger)
+        # We allow this term to be negative (penalty for being boring) 
+        # OR positive (reward for being cool), but ONLY if gated.
         pop_term = (1 - alpha) * delta_pop_pct
         
-        # Apply Logic:
-        # If Pass: Reward = Acc + Pop (Trade-off allowed)
-        # If Fail: Reward = Acc only (Pure Penalty for failing accuracy)
+        # --- 5. Final Logic ---
+        # If Gated: Total = Acc + Pop
+        # If Not Gated: Total = Acc Only (Pop term is silenced)
+        
+        # Why this works:
+        # 1. If Acc drops (Delta < 0) -> Gated is False -> Reward = Negative Acc Penalty. (Fixes Erosion)
+        # 2. If Acc match (Delta = 0) but Miss (Stud=0) -> Gated is False -> Reward = 0. (Fixes Lucky Miss)
+        # 3. If Acc match (Delta = 0) and Hit (Stud>0) -> Gated is True -> Reward = Pop Term. (Valid Serendipity)
+        
         total_reward = torch.where(
-            pass_gate,
+            is_safe_and_relevant,
             acc_term + pop_term,
             acc_term
         )
         
-        # --- 4. Safety ---
-        # Clamp to prevent gradient explosions from rare outliers
-        total_reward = torch.clamp(total_reward, -1.0, 1.0)
-        
-        # Success Rate: Strictly beating baseline accuracy
-        success_rate = (delta_ndcg > 0).float().mean()
-        
-        return total_reward, success_rate
+        return torch.clamp(total_reward, -1.0, 1.0), (stud_ndcg > 0).float().mean()
