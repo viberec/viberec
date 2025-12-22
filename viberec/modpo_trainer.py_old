@@ -112,12 +112,6 @@ class MODPOTrainer(Trainer):
             # 1. Sample Lists (Student + Reference)
             student_lists, _ = self._sample_lists(self.model, batch_data, group_size, self.k)
             ref_list = self._predict_topk(self.ref_model, batch_data, self.k)
-            
-            # Pool: [Batch, G+1, K]
-            # ref_list comes as [Batch, 1, K] from _predict_topk, need to verify
-            # Looking at previous errors, _predict_topk returns [Batch, 1, K].
-            # student_lists is [Batch, G, K].
-            # So cat is safe on dim=1.
             candidate_pool = torch.cat([student_lists, ref_list], dim=1)
             
             # 2. Raw Metrics
@@ -125,58 +119,58 @@ class MODPOTrainer(Trainer):
             all_ndcg = self.reward_calc.calc_ndcg(candidate_pool, target_items)
             all_pop = self.reward_calc.get_batch_pop(candidate_pool)
             
-            # 3. Create Lexicographical Score (No Alpha)
-            # We want strict hierarchy: NDCG > Serendipity
+            # 3. Rank Normalization
+            # NDCG: Higher Rank = Better
+            rank_ndcg = all_ndcg.argsort(dim=1).argsort(dim=1).float()
+            norm_ndcg = rank_ndcg / (group_size) 
             
-            # A. Normalize Pop to [0, 1] (Lower is Better -> Higher Score)
-            # 1 / (pop + 1) makes low pop closer to 1.0, high pop closer to 0.0
-            pop_score = 1.0 / (all_pop + 1.0)
+            # Pop: Higher Rank = Lower Pop (Better)
+            rank_pop = (-all_pop).argsort(dim=1).argsort(dim=1).float()
+            norm_pop = rank_pop / (group_size)
             
-            # B. The Hierarchy Formula
-            # Score = NDCG (Primary) + 0.0001 * Pop_Score (Bonus)
-            # Since NDCG is usually discrete or has significant gaps, 
-            # the 0.0001 factor ensures Pop never overpowers an NDCG gain.
-            final_scores = all_ndcg + (1e-4 * pop_score)
+            # 4. Alpha Scoring
+            final_scores = (self.w_alpha * norm_ndcg) + ((1 - self.w_alpha) * norm_pop)
             
-            # Safety: If NDCG is 0, we can drop the score to -1 to ensure it loses 
-            # unless everyone is 0.
+            # disqualify garbage immediately from being a "Winner" 
+            # (Winner must be at least somewhat relevant)
             final_scores = torch.where(all_ndcg > 0, final_scores, torch.tensor(-1.0, device=self.device))
             
-            # 4. Select Winner/Loser
+            # 5. Selection
             best_indices = torch.argmax(final_scores, dim=1)
             worst_indices = torch.argmin(final_scores, dim=1)
             
             # Gather IDs
             batch_indices = torch.arange(candidate_pool.size(0), device=self.device)
+            
             chosen_ids = candidate_pool[batch_indices, best_indices]
             rejected_ids = candidate_pool[batch_indices, worst_indices]
             
-            # --- 5. The "Hierarchy" Mask ---
+            # --- 6. The "Hybrid" Safety Mask (The Fix) ---
             
-            # Get values for Winner
-            chosen_ndcg = all_ndcg[batch_indices, best_indices]
-            chosen_pop = all_pop[batch_indices, best_indices]
+            # Gather metrics for Winner vs Loser
+            chosen_score = final_scores[batch_indices, best_indices]
+            rejected_score = final_scores[batch_indices, worst_indices]
             
-            # Get values for Loser
-            rejected_ndcg = all_ndcg[batch_indices, worst_indices]
-            rejected_pop = all_pop[batch_indices, worst_indices]
+            chosen_pop_val = all_pop[batch_indices, best_indices]
+            rejected_pop_val = all_pop[batch_indices, worst_indices]
             
-            # Condition A: NDCG Improvement (Primary Goal)
-            # If Winner beats Loser in Accuracy, we ALWAYS train.
-            is_ndcg_improved = (chosen_ndcg > rejected_ndcg)
+            rejected_ndcg_val = all_ndcg[batch_indices, worst_indices]
             
-            # Condition B: Serendipity Bonus (Secondary Goal)
-            # If Accuracy is TIED (and valid), we check if Pop improved.
-            # Note: We must ensure NDCG > 0 to avoid optimizing "0 vs 0" garbage.
-            is_ndcg_tied = (chosen_ndcg == rejected_ndcg) & (chosen_ndcg > 0)
-            is_pop_improved = (chosen_pop < rejected_pop)
+            # Condition A: General Score Improvement
+            is_better_score = (chosen_score > rejected_score)
             
-            is_bonus_valid = is_ndcg_tied & is_pop_improved
+            # Condition B: Serendipity Constraint
+            # "Winner must have Lower Pop"
+            is_more_serendipitous = (chosen_pop_val < rejected_pop_val)
             
-            # Final Mask:
-            # 1. NDCG Improved? -> YES
-            # 2. NDCG Tied but Serendipity Improved? -> YES
-            valid_mask = (is_ndcg_improved | is_bonus_valid)
+            # Condition C: Safety Exception
+            # If the Loser is "Garbage" (NDCG=0), we allow the Winner to be popular.
+            # We must verify the Winner is actually valid (Score > -1)
+            is_loser_garbage = (rejected_ndcg_val == 0)
+            
+            # FINAL MASK:
+            # Train if: (Better Score) AND ( (Loser is Garbage) OR (Winner is More Serendipitous) )
+            valid_mask = is_better_score & (is_loser_garbage | is_more_serendipitous) & (chosen_score > -0.5)
             
             return chosen_ids, rejected_ids, valid_mask
 

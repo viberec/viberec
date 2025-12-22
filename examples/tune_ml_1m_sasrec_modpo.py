@@ -20,11 +20,12 @@ def ml_1m_param_space(trial):
         # 3e-5 might be too slow for the larger dataset.
         'learning_rate': trial.suggest_categorical('learning_rate', [5e-5, 8e-5, 1e-4]),
         
-        # 2. Alpha: Removed 0.8, Added 0.95.
-        # You explicitly want to IMPROVE NDCG. 
-        # 0.8 allows a 20% accuracy drop for serendipity, which hurts your goal.
-        # 0.95 forces the model to only pick "Safe" serendipity.
-        'alpha': trial.suggest_categorical('alpha', [0.9, 0.95]), 
+        # 2. Alpha: Removed.
+        # The new Lexicographical Logic uses a fixed hierarchy (NDCG > Pop)
+        # so 'alpha' is no longer a tunable weight used in selection.
+        # We remove it to save search trials.
+        # 'alpha': trial.suggest_categorical('alpha', [0.9, 0.95]), 
+        'alpha': 1.0, # Dummy fixed value just to satisfy config schema if needed 
         
         # 3. Group Size: Kept 16 and 32.
         # ML-1M needs deep sampling (32) to find the "Positive Mutants" in the larger item space.
