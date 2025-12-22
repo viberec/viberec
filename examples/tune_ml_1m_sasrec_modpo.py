@@ -18,7 +18,7 @@ def ml_1m_param_space(trial):
         # 1. Learning Rate: Removed 1e-4, Added 8e-5.
         # 1e-4 is risky for ML-1M with G=32 (gradients sum up). 
         # 3e-5 might be too slow for the larger dataset.
-        'learning_rate': trial.suggest_categorical('learning_rate', [5e-5, 8e-5, 1e-4]),
+        'learning_rate': trial.suggest_categorical('learning_rate', [1e-4, 3e-4, 1e-3]),
         
         # 2. Alpha: Removed.
         # The new Lexicographical Logic uses a fixed hierarchy (NDCG > Pop)
@@ -43,7 +43,7 @@ def ml_1m_param_space(trial):
         # Removing 1.0 reduces search space noise.
         'clip_grad_norm': trial.suggest_categorical('clip_grad_norm', [0.5]),
         
-        'epochs': 10
+        'epochs': 20
     }
 
 if __name__ == "__main__":
