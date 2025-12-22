@@ -10,7 +10,7 @@ from recbole.data import create_dataset, data_preparation
 from recbole.data.transform import construct_transform
 import torch.distributed as dist
 
-from viberec.modapo_trainer import MODPOTrainer
+from viberec.modpo_trainer import MODPOTrainer
 
 def run_modpo_finetune(finetune_config_path, base_config_path="examples/config/ml100k_sasrec.yaml", push_to_hub=True, **kwargs):
     """
