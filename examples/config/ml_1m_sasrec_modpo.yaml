@@ -1,7 +1,7 @@
 repo_id: "viberec/ML-1M-SASRec"
 epochs: 3
-train_batch_size: 4096
-eval_batch_size: 4096
+train_batch_size: 8192
+eval_batch_size: 8192
 
 # Finetune Parameters
 alpha: 0.8
