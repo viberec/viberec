@@ -1,7 +1,7 @@
 # Fine-tuning configuration for GRPO
 finetune:
   repo_id: "viberec/ML-100k-SASRec"
-  epochs: 3
+  epochs: 50
   k: 10
   learning_rate: 0.00005
   # Logging interval in steps

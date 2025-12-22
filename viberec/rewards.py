@@ -140,3 +140,63 @@ class DeltaRewardCalculator:
         total_reward = torch.clamp(total_reward, -1.0, 1.0)
         
         return total_reward, is_relevant.mean()
+
+class DPOReferenceRewardCalculator(DeltaRewardCalculator):
+    """
+    Reward logic specifically adapted for DPO.
+    In DPO, we don't need a scalar reward for gradient ascent directly in the loss.
+    Instead, we need a scalar 'utility' score to determine which sample is 'Chosen' vs 'Rejected'.
+    
+    This utility score should reflect the user's preference:
+    Prefer accuracy + serendipity > accuracy > pure serendipity > infinite loop.
+    """
+    def compute_reward(self, student_lists, baseline_lists, ground_truth, alpha):
+        # reuse parent metrics calculation
+        stud_ndcg = self.calc_ndcg(student_lists, ground_truth)
+        stud_pop = self.get_batch_pop(student_lists)
+        
+        # We don't necessarily need baseline_lists for DPO *ranking* logic if we just want absolute quality,
+        # BUT if we want "improvement over baseline" to be the utility key, we keep it.
+        # Let's stick to the "improvement" logic to be consistent with GRPO objective.
+        
+        base_ndcg = self.calc_ndcg(baseline_lists, ground_truth)
+        base_pop = self.get_batch_pop(baseline_lists)
+        
+        # --- Utility Score Calculation ---
+        # 1. Accuracy Utility
+        # High NDCG = Good.
+        # Improvement over Baseline = Very Good.
+        delta_ndcg = stud_ndcg - base_ndcg
+        
+        # 2. Serendipity Utility
+        # Low Pop = Good.
+        delta_pop_pct = (base_pop - stud_pop) / (base_pop + 1e-9)
+        # Squash pop signal
+        pop_signal = torch.tanh(delta_pop_pct)
+        
+        # 3. Combine
+        # "Alpha" controls importance of Accuracy.
+        # Utility = Alpha * Accuracy_Signal + (1-Alpha) * Serendipity_Signal
+        
+        # We use a simpler additive form for Preference Ranking (Values don't need to be bounded strictly)
+        # However, accurate ranking is critical.
+        
+        # Gating: If item is irrelevant (NDCG=0), Utility should be very low (e.g. -infinity or just 0).
+        # We want to prefer Relevant items over everything else.
+        
+        is_relevant = (stud_ndcg > 0).float()
+        
+        # Accuracy Part:
+        # We reward high absolute NDCG AND improvement.
+        acc_utility = stud_ndcg + delta_ndcg
+        
+        # Serendipity Part:
+        # Only counts if relevant.
+        pop_utility = pop_signal * is_relevant
+        
+        total_utility = (alpha * acc_utility) + ((1 - alpha) * pop_utility)
+        
+        # Success Rate (for logging only)
+        success_rate = is_relevant.mean()
+        
+        return total_utility, success_rate

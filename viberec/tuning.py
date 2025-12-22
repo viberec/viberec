@@ -10,14 +10,15 @@ def objective(trial, config_path, base_config_path):
     2. Minimize AveragePopularity@10
     """
     params = {
-        # Lower learning rates for stability
-        'learning_rate': trial.suggest_categorical('learning_rate', [1e-5, 5e-5]),
-        # Alpha should probably be lower if you use the "Safety Floor" reward
-        'alpha': trial.suggest_categorical('alpha', [0.9, 0.95, 0.99]),
-        # Increase Group Size for better Advantage estimates
+        # Lower learning rates for stability (1e-5 found best in ML100k MODPO tuning)
+        'learning_rate': trial.suggest_categorical('learning_rate', [5e-6, 1e-5]),
+        # Alpha 0.5 performed best for MODPO in ML100k tuning (Best Trade-off)
+        'alpha': trial.suggest_categorical('alpha', [0.7, 0.8, 0.9, 0.95]),
+        # Group size 16 was superior to 8.
         'group_size': trial.suggest_categorical('group_size', [16, 32]),
-        'kl_beta': trial.suggest_categorical('kl_beta', [0.5, 0.7, 0.9]),
-        'epochs': 5 # Give it a few more epochs to recover from the initial exploration
+        # KL Beta 0.3 was optimal, 0.1 also effective.
+        'kl_beta': trial.suggest_categorical('kl_beta', [0.1, 0.3]),
+        'epochs': 5 
     }
     
     print(f"\n[Optuna Trial {trial.number}] Params: {params}")
