@@ -38,7 +38,7 @@ class MODPOTrainer(Trainer):
 
         # 2. Config
         self.group_size = config.get('group_size', 8) # Recommend 8 for diversity
-        self.w_alpha = config.get('alpha', 0.9)       # High alpha = Accuracy Focus
+        # Alpha is deprecated in favor of Lexicographical Hierarchy
         self.beta = config.get('kl_beta', 0.1)        # DPO Constraint
         
         topk = config.get('topk', 10)

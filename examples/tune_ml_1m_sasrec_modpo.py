@@ -36,7 +36,7 @@ def ml_1m_param_space(trial):
         # 0.05 is banned (Too risky for G=32).
         # 0.1 is the sweet spot. 
         # 0.2 is the safety anchor if G=32 causes drift.
-        'kl_beta': trial.suggest_categorical('kl_beta', [0.1, 0.15, 0.2]),
+        'kl_beta': trial.suggest_categorical('kl_beta', [0.1, 0.2, 0.5]),
         
         # 5. Clip Grad: Fixed to 0.5.
         # In DPO, stable gradients are better than large clipped ones. 
