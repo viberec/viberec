@@ -43,7 +43,7 @@ def ml_1m_param_space(trial):
         # Removing 1.0 reduces search space noise.
         'clip_grad_norm': trial.suggest_categorical('clip_grad_norm', [0.5]),
         
-        'epochs': 20
+        'epochs': 30
     }
 
 if __name__ == "__main__":

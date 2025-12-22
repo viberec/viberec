@@ -128,15 +128,12 @@ class MODPOTrainer(Trainer):
             # 3. Create Lexicographical Score (No Alpha)
             # We want strict hierarchy: NDCG > Serendipity
             
-            # A. Normalize Pop to [0, 1] (Lower is Better -> Higher Score)
-            # 1 / (pop + 1) makes low pop closer to 1.0, high pop closer to 0.0
-            pop_score = 1.0 / (all_pop + 1.0)
+            # A. Normalize Pop (Unused in Pure NDCG)
+            # pop_score = 1.0 / (all_pop + 1.0)
             
-            # B. The Hierarchy Formula
-            # Score = NDCG (Primary) + 0.0001 * Pop_Score (Bonus)
-            # Since NDCG is usually discrete or has significant gaps, 
-            # the 0.0001 factor ensures Pop never overpowers an NDCG gain.
-            final_scores = all_ndcg + (1e-4 * pop_score)
+            # B. Pure NDCG Score
+            # We ignore Serendipity.
+            final_scores = all_ndcg
             
             # Safety: If NDCG is 0, we can drop the score to -1 to ensure it loses 
             # unless everyone is 0.
@@ -165,18 +162,9 @@ class MODPOTrainer(Trainer):
             # If Winner beats Loser in Accuracy, we ALWAYS train.
             is_ndcg_improved = (chosen_ndcg > rejected_ndcg)
             
-            # Condition B: Serendipity Bonus (Secondary Goal)
-            # If Accuracy is TIED (and valid), we check if Pop improved.
-            # Note: We must ensure NDCG > 0 to avoid optimizing "0 vs 0" garbage.
-            is_ndcg_tied = (chosen_ndcg == rejected_ndcg) & (chosen_ndcg > 0)
-            is_pop_improved = (chosen_pop < rejected_pop)
-            
-            is_bonus_valid = is_ndcg_tied & is_pop_improved
-            
-            # Final Mask:
-            # 1. NDCG Improved? -> YES
-            # 2. NDCG Tied but Serendipity Improved? -> YES
-            valid_mask = (is_ndcg_improved | is_bonus_valid)
+            # Pure NDCG Improvement Mask
+            # We ignore serendipity gains. Only strict accuracy gains count.
+            valid_mask = is_ndcg_improved
             
             return chosen_ids, rejected_ids, valid_mask
 

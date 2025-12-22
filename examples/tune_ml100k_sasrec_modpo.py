@@ -18,8 +18,8 @@ def ml100k_param_space(trial):
         # 1e-4 gave highest NDCG. 5e-5 is robust.
         'learning_rate': trial.suggest_categorical('learning_rate', [5e-5, 8e-5, 1e-4, 3e-4]),
         
-        # Alpha 0.9 drives acc. 0.8 gives balance. 
-        'alpha': trial.suggest_categorical('alpha', [0.8, 0.85, 0.9]), 
+        # Alpha is unused in Lexicographical Logic
+        'alpha': 1.0, 
         
         # Group Size 8 is best for pure NDCG. 16 for diversity.
         'group_size': trial.suggest_categorical('group_size', [8, 16]),
