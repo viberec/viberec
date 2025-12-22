@@ -29,7 +29,7 @@ item_inter_num_interval: "[10,inf)"
 
 # Training and Evaluation
 epochs: 500
-train_batch_size: 4096
+train_batch_size: 4096 
 eval_batch_size: 4096
 valid_metric: NDCG@10
 eval_args:
@@ -38,7 +38,7 @@ eval_args:
     order: TO
 
 # Metrics
-metrics: ["NDCG", "Hit", "Precision", "Recall"]
+metrics: [NDCG, Hit, AveragePopularity, GiniIndex, ItemCoverage, ShannonEntropy, TailPercentage]
 topk: 10
 
 # Disable negative sampling (Cross Entropy Loss for SASRec)
