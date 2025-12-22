@@ -29,8 +29,8 @@ item_inter_num_interval: "[10,inf)"
 
 # Training and Evaluation
 epochs: 500
-train_batch_size: 8192
-eval_batch_size: 8192
+train_batch_size: 4096
+eval_batch_size: 4096
 valid_metric: NDCG@10
 eval_args:
     split: {'LS': 'valid_and_test'}
