@@ -1,8 +1,8 @@
 # Dataset Config for Amazon_Books
-dataset: Amazon_Books
+dataset: Amazon-Books
 model: SASRec
 
-# Data format
+# Data forma
 field_separator: "\t"
 seq_separator: " "
 USER_ID_FIELD: user_id
