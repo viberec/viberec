@@ -45,8 +45,6 @@ class MODPOTrainer(Trainer):
         self.k = topk[0] if isinstance(topk, list) else topk
         self.clip_grad_norm = config.get('clip_grad_norm', 1.0)
         
-        self.logger.info(f"[MODPO] Init: Alpha={self.w_alpha}, Beta={self.beta}, G={self.group_size}, K={self.k}, Clip={self.clip_grad_norm}")
-
     def _create_reference_model(self, config, model):
         import copy
         ref_model = copy.deepcopy(model)
