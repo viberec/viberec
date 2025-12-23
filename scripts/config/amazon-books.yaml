@@ -25,11 +25,13 @@ item_inter_num_interval: "[10,inf)"
 # training and evaluation
 epochs: 500
 train_batch_size: 4096
-eval_batch_size: 4096
+eval_batch_size: 40960
 valid_metric: NDCG@10
 eval_args:
     split: {'LS': 'valid_and_test'}
-    mode: {'valid': 'uni100', 'test': 'full'}
+    mode: 
+      valid: uni100
+      test: full
     order: TO
 
 learning_rate: 0.0003

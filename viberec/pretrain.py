@@ -41,6 +41,7 @@ def pretrain(model_name, dataset_name, config_file_list, repo_id=None, hf_token=
 
     # 3. Create Dataset and DataLoaders
     dataset = create_dataset(config)
+    logger.info(dataset)
     train_data, valid_data, test_data = data_preparation(config, dataset)
     
     # 4. Initialize Model
