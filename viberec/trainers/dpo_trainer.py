@@ -26,8 +26,8 @@ class DPOTrainer(Trainer):
             param.requires_grad = False
             
         # 2. Config
-        self.group_size = config.get('group_size', 8) # Recommend 8 for diversity
-        self.beta = config.get('kl_beta', 0.1)        # DPO Constraint
+        self.group_size = config.get('group_size', 8) 
+        self.beta = config.get('kl_beta', 0.1)        
         
         topk = config.get('topk', 10)
         self.k = topk[0] if isinstance(topk, list) else topk

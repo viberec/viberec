@@ -18,7 +18,7 @@ def upload_to_huggingface(repo_id, trainer, config, model_name, dataset_name, me
         print(f"Error creating repo (might already exist or permission denied): {e}")
 
     # Prepare temporary directory for artifacts
-    tmp_dir = "tmp_hf_upload"
+    tmp_dir = "tmp"
     os.makedirs(tmp_dir, exist_ok=True)
     
     # 1. Save Config (YAML)

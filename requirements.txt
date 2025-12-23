@@ -1,3 +1,6 @@
 git+https://github.com/viberec/Recbole.git
-optuna
-fire
+huggingface_hub
+ray[tune]
+wandb
+pyyaml
+numpy>=2.0

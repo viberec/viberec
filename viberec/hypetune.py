@@ -138,13 +138,23 @@ def hypertune(model, dataset, config_file_list, params_file, output_file='hyper_
     logger = logging.getLogger()
     logger.info(f"Starting Ray Tune for {model} on {dataset}")
     
+    # Use ASHAScheduler for efficient early stopping
+    scheduler = ASHAScheduler(
+        metric="valid_score",
+        mode="max",
+        max_t=50,
+        grace_period=1,
+        reduction_factor=2
+    )
+    
     analysis = tune.run(
         train_func,
         config=config_space,
         metric="valid_score",
         mode="max",
         num_samples=num_samples, 
-        resources_per_trial={"cpu": cpus, "gpu": gpus} 
+        resources_per_trial={"cpu": cpus, "gpu": gpus},
+        scheduler=scheduler
     )
     
     best_config = analysis.get_best_config(metric="valid_score", mode="max")

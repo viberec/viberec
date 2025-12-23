@@ -1,1 +1,4 @@
-learning_rate choice [0.00001, 0.00005, 0.0001]
+learning_rate choice [5e-5, 8e-5, 1e-4, 3e-4]
+group_size choice [8, 16]
+kl_beta choice [0.05, 0.08, 0.1]
+clip_grad_norm choice [0.5, 1.0]

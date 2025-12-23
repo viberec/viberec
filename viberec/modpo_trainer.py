@@ -123,16 +123,8 @@ class MODPOTrainer(Trainer):
             # 2. Raw Metrics
             target_items = batch_data[self.config['ITEM_ID_FIELD']]
             all_ndcg = self.reward_calc.calc_ndcg(candidate_pool, target_items)
-            all_pop = self.reward_calc.get_batch_pop(candidate_pool)
             
-            # 3. Create Lexicographical Score (No Alpha)
-            # We want strict hierarchy: NDCG > Serendipity
-            
-            # A. Normalize Pop (Unused in Pure NDCG)
-            # pop_score = 1.0 / (all_pop + 1.0)
-            
-            # B. Pure NDCG Score
-            # We ignore Serendipity.
+            # 3. Pure NDCG Score
             final_scores = all_ndcg
             
             # Safety: If NDCG is 0, we can drop the score to -1 to ensure it loses 
@@ -148,22 +140,19 @@ class MODPOTrainer(Trainer):
             chosen_ids = candidate_pool[batch_indices, best_indices]
             rejected_ids = candidate_pool[batch_indices, worst_indices]
             
-            # --- 5. The "Hierarchy" Mask ---
+            # --- 5. The Mask ---
             
             # Get values for Winner
             chosen_ndcg = all_ndcg[batch_indices, best_indices]
-            chosen_pop = all_pop[batch_indices, best_indices]
             
             # Get values for Loser
             rejected_ndcg = all_ndcg[batch_indices, worst_indices]
-            rejected_pop = all_pop[batch_indices, worst_indices]
             
-            # Condition A: NDCG Improvement (Primary Goal)
+            # Condition: NDCG Improvement
             # If Winner beats Loser in Accuracy, we ALWAYS train.
             is_ndcg_improved = (chosen_ndcg > rejected_ndcg)
             
             # Pure NDCG Improvement Mask
-            # We ignore serendipity gains. Only strict accuracy gains count.
             valid_mask = is_ndcg_improved
             
             return chosen_ids, rejected_ids, valid_mask
