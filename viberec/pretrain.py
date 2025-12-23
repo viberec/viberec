@@ -17,6 +17,12 @@ from viberec.huggingface import upload_to_huggingface
 def pretrain(model_name, dataset_name, config_file_list, repo_id=None, hf_token=None, wandb_api_key=None, config_dict=None):
     if wandb_api_key:
         os.environ['WANDB_API_KEY'] = wandb_api_key
+
+    # Patch torch.distributed.barrier to avoid errors in single-node/non-distributed runs
+    # when RecBole tries to use it during dataset download.
+    if not dist.is_initialized():
+        dist.barrier = lambda *args, **kwargs: None
+    
     # 1. Initialize Configuration
     config = Config(
         model=model_name,
