@@ -9,6 +9,7 @@ from viberec.hypetune import hypertune
 
 # Import custom trainers here or dynamically load them
 from viberec.trainers.dpo_trainer import DPOTrainer
+from viberec.trainers.ppo_trainer import PPOTrainer
 
 def main():
     parser = argparse.ArgumentParser(description='Run Viberec Hyperparameter Tuning')
@@ -26,6 +27,9 @@ def main():
     parser.add_argument('--num_samples', type=int, default=1, help='Number of samples/trials to run')
     parser.add_argument('--gpus', type=float, default=0, help='GPUs per trial')
     parser.add_argument('--cpus', type=int, default=1, help='CPUs per trial')
+    parser.add_argument('--max_t', type=int, default=50, help='Max epochs for ASHA scheduler')
+    parser.add_argument('--grace_period', type=int, default=1, help='Grace period for ASHA scheduler')
+    parser.add_argument('--reduction_factor', type=int, default=2, help='Reduction factor for ASHA scheduler')
 
     args, unknown = parser.parse_known_args()
 
@@ -64,6 +68,8 @@ def main():
     trainer_class = None
     if args.trainer == 'DPOTrainer':
         trainer_class = DPOTrainer
+    elif args.trainer == 'PPOTrainer':
+        trainer_class = PPOTrainer
         
     hypertune(
         model=args.model,
@@ -80,7 +86,10 @@ def main():
         cli_config_dict=config_dict,
         num_samples=args.num_samples,
         gpus=args.gpus,
-        cpus=args.cpus
+        cpus=args.cpus,
+        max_t=args.max_t,
+        grace_period=args.grace_period,
+        reduction_factor=args.reduction_factor
     )
 
 if __name__ == '__main__':

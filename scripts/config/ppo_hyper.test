@@ -1,0 +1,4 @@
+learning_rate choice [1e-5, 5e-5, 1e-4]
+ppo_epochs choice [1, 2, 4]
+clip_ratio choice [0.1, 0.2, 0.3]
+entropy_coef choice [0.0, 0.001, 0.01]

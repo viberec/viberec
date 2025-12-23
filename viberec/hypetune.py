@@ -76,7 +76,10 @@ def hypertune(model, dataset, config_file_list, params_file, output_file='hyper_
               cli_config_dict=None,
               num_samples=1,
               gpus=0,
-              cpus=1):
+              cpus=1,
+              max_t=50,
+              grace_period=1,
+              reduction_factor=2):
               
     # Convert config files to absolute paths to avoid FileNotFoundError in Ray workers
     if config_file_list:
@@ -142,23 +145,23 @@ def hypertune(model, dataset, config_file_list, params_file, output_file='hyper_
     scheduler = ASHAScheduler(
         metric="valid_score",
         mode="max",
-        max_t=50,
-        grace_period=1,
-        reduction_factor=2
+        max_t=max_t,
+        grace_period=grace_period,
+        reduction_factor=reduction_factor
     )
     
     analysis = tune.run(
         train_func,
         config=config_space,
-        metric="valid_score",
-        mode="max",
         num_samples=num_samples, 
         resources_per_trial={"cpu": cpus, "gpu": gpus},
         scheduler=scheduler
     )
     
-    best_config = analysis.get_best_config(metric="valid_score", mode="max")
+    best_trial = analysis.get_best_trial(metric="valid_score", mode="max")
+    best_config = best_trial.config
     print("Best Config: ", best_config)
+    print("Best Valid Score: ", best_trial.last_result['valid_score'])
     
     # Save results
     output_dir = os.path.dirname(output_file)
@@ -167,4 +170,6 @@ def hypertune(model, dataset, config_file_list, params_file, output_file='hyper_
         
     with open(output_file, 'w') as f:
         f.write(f"Best Config: {best_config}\n")
-        f.write(f"Best Result: {analysis.best_result}\n")
+        best_trial = analysis.get_best_trial(metric="valid_score", mode="max")
+        if best_trial:
+            f.write(f"Best Result: {best_trial.last_result}\n")

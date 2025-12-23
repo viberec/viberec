@@ -8,6 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from viberec.finetune import finetune
 # Import custom trainers here or dynamically load them
 from viberec.trainers.dpo_trainer import DPOTrainer
+from viberec.trainers.ppo_trainer import PPOTrainer
 
 def main():
     parser = argparse.ArgumentParser(description='Run Viberec Fine-tuning')
@@ -57,6 +58,8 @@ def main():
     trainer_class = None
     if args.trainer == 'DPOTrainer':
         trainer_class = DPOTrainer
+    elif args.trainer == 'PPOTrainer':
+        trainer_class = PPOTrainer
     # Add other trainers here if needed
     elif args.trainer:
         print(f"Warning: Trainer {args.trainer} not explicitly mapped in script. Trying to load default.")
