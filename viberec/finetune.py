@@ -2,7 +2,7 @@ import os
 import logging
 import torch
 from recbole.config import Config
-from recbole.data import create_dataset, data_preparation
+from viberec.data import load_data
 from recbole.utils import init_logger, get_model, get_trainer, init_seed
 from huggingface_hub import hf_hub_download
 from viberec.huggingface import upload_to_huggingface
@@ -28,8 +28,7 @@ def finetune(model_name, dataset_name, config_file_list, trainer_class=None, rep
     logger.info(config)
 
     # 3. Create Dataset and DataLoaders
-    dataset = create_dataset(config)
-    train_data, valid_data, test_data = data_preparation(config, dataset)
+    dataset, train_data, valid_data, test_data = load_data(config)
     
     # 4. Initialize Model
     model_class = get_model(config['model'])

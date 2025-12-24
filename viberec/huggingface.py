@@ -128,3 +128,66 @@ metrics:
 {yaml_config}
 ```
 """
+
+def upload_dataset(repo_id, file_paths, dataset_name, config=None, hf_token=None):
+    print(f"\nExample: Starting dataset upload to Hugging Face Hub: {repo_id}")
+    
+    api = HfApi(token=hf_token)
+    token = hf_token or HfApi().token
+    if not token:
+        print("Warning: No Hugging Face token found. Please run `huggingface-cli login` or set HF_TOKEN env var.")
+
+    # Create Repo
+    try:
+        api.create_repo(repo_id=repo_id, token=token, repo_type="dataset", exist_ok=True)
+    except Exception as e:
+        print(f"Error creating repo (might already exist or permission denied): {e}")
+
+    # Upload files
+    try:
+        for file_path in file_paths:
+            if not os.path.exists(file_path):
+                print(f"Warning: File not found {file_path}")
+                continue
+                
+            file_name = os.path.basename(file_path)
+            print(f"Uploading {file_name}...")
+            api.upload_file(
+                path_or_fileobj=file_path,
+                path_in_repo=file_name,
+                repo_id=repo_id,
+                repo_type="dataset"
+            )
+            
+        # Upload config if provided
+        if config:
+            import yaml
+            # Filter non-serializable objects
+            config_dict = config.final_config_dict
+            serializable_config = {}
+            for k, v in config_dict.items():
+                if k in ['data_path', 'device']: 
+                     continue
+                if isinstance(v, (str, int, float, bool, list, dict, type(None))):
+                     serializable_config[k] = v
+                else:
+                     serializable_config[k] = str(v)
+            
+            # Save to temporary file
+            tmp_config_path = "tmp_dataset_config.yaml"
+            with open(tmp_config_path, "w") as f:
+                yaml.dump(serializable_config, f, default_flow_style=False)
+                
+            print(f"Uploading config.yaml...")
+            api.upload_file(
+                path_or_fileobj=tmp_config_path,
+                path_in_repo="config.yaml",
+                repo_id=repo_id,
+                repo_type="dataset"
+            )
+            os.remove(tmp_config_path)
+
+        print(f"Successfully uploaded dataset to https://huggingface.co/datasets/{repo_id}")
+        
+    except Exception as e:
+        print(f"Error during upload: {e}")

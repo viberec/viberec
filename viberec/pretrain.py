@@ -8,10 +8,11 @@ import torch.distributed as dist
 from huggingface_hub import HfApi, create_repo
 
 from recbole.config import Config
-from recbole.data import create_dataset, data_preparation
+
 from recbole.utils import init_logger, get_model, get_trainer, init_seed, get_flops
 from recbole.data.transform import construct_transform
 from viberec.huggingface import upload_to_huggingface
+from viberec.data import load_data
 
 
 def pretrain(model_name, dataset_name, config_file_list, repo_id=None, hf_token=None, wandb_api_key=None, config_dict=None):
@@ -40,10 +41,9 @@ def pretrain(model_name, dataset_name, config_file_list, repo_id=None, hf_token=
     logger.info(config)
 
     # 3. Create Dataset and DataLoaders
-    dataset = create_dataset(config)
-    logger.info(dataset)
-    train_data, valid_data, test_data = data_preparation(config, dataset)
-    
+    dataset, train_data, valid_data, test_data = load_data(config)
+
+
     # 4. Initialize Model
     model_class = get_model(config['model'])
     model = model_class(config, train_data.dataset).to(config['device'])
