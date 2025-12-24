@@ -5,6 +5,9 @@ from recbole.data import create_dataset, data_preparation
 from recbole.utils import init_logger
 from viberec.huggingface import upload_dataset
 from huggingface_hub import hf_hub_download
+from huggingface_hub.utils import disable_progress_bars
+
+disable_progress_bars()
 import torch.distributed as dist
 
 
@@ -146,4 +149,4 @@ def preprocess_and_upload(
 
     # 5. Upload to Hugging Face
     logger.info(f"Uploading files to {repo_id}: {saved_files}")
-    upload_dataset(repo_id, saved_files, dataset_name, config=config, hf_token=hf_token)
+    upload_dataset(repo_id, saved_files, dataset_name, config=config, hf_token=hf_token, dataset_stats=dataset)

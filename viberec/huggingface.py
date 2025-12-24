@@ -1,6 +1,9 @@
 import os
 import yaml
 from huggingface_hub import HfApi
+from huggingface_hub.utils import disable_progress_bars
+
+disable_progress_bars()
 
 def upload_to_huggingface(repo_id, trainer, config, model_name, dataset_name, metrics, hf_token=None):
     print(f"\nExample: Starting upload to Hugging Face Hub: {repo_id}")
@@ -129,7 +132,7 @@ metrics:
 ```
 """
 
-def upload_dataset(repo_id, file_paths, dataset_name, config=None, hf_token=None):
+def upload_dataset(repo_id, file_paths, dataset_name, config=None, hf_token=None, dataset_stats=None):
     print(f"\nExample: Starting dataset upload to Hugging Face Hub: {repo_id}")
     
     api = HfApi(token=hf_token)
@@ -143,6 +146,63 @@ def upload_dataset(repo_id, file_paths, dataset_name, config=None, hf_token=None
     except Exception as e:
         print(f"Error creating repo (might already exist or permission denied): {e}")
 
+    # Generate Data Card (README.md)
+    if dataset_stats:
+        try:
+             # Extract stats if dataset_stats is a RecBole dataset object
+             num_users = getattr(dataset_stats, 'user_num', 'N/A')
+             num_items = getattr(dataset_stats, 'item_num', 'N/A')
+             num_interactions = getattr(dataset_stats, 'inter_num', 'N/A')
+             sparsity = 'N/A'
+             if num_users != 'N/A' and num_items != 'N/A' and num_interactions != 'N/A':
+                 sparsity = f"{100 * (1 - num_interactions / (num_users * num_items)):.4f}%"
+
+             readme_content = f"""---
+tags:
+- viberec
+- recommender-system
+- dataset
+dataset_info:
+  features:
+  - name: user_id
+    dtype: int32
+  - name: item_id
+    dtype: int32
+  - name: rating
+    dtype: float32
+  - name: timestamp
+    dtype: float32
+  splits:
+  - name: train
+    num_bytes: 0
+    num_examples: 0
+  download_size: 0
+  dataset_size: 0
+---
+
+# Dataset Card for {dataset_name}
+
+## Dataset Statistics
+- **Users**: {num_users}
+- **Items**: {num_items}
+- **Interactions**: {num_interactions}
+- **Sparsity**: {sparsity}
+
+## Config
+```yaml
+{yaml.dump(config.final_config_dict if config else {}, default_flow_style=False)}
+```
+"""
+             # Save README.md in a temporary path
+             tmp_readme_path = "tmp_dataset_README.md"
+             with open(tmp_readme_path, "w") as f:
+                 f.write(readme_content)
+             
+             file_paths = list(file_paths) + [tmp_readme_path]
+             
+        except Exception as e:
+             print(f"Error generating data card: {e}")
+
     # Upload files
     try:
         for file_path in file_paths:
@@ -151,13 +211,19 @@ def upload_dataset(repo_id, file_paths, dataset_name, config=None, hf_token=None
                 continue
                 
             file_name = os.path.basename(file_path)
-            print(f"Uploading {file_name}...")
+            # Map tmp readme to actual README.md
+            path_in_repo = "README.md" if file_name == "tmp_dataset_README.md" else file_name
+            
+            print(f"Uploading {file_name} as {path_in_repo}...")
             api.upload_file(
                 path_or_fileobj=file_path,
-                path_in_repo=file_name,
+                path_in_repo=path_in_repo,
                 repo_id=repo_id,
                 repo_type="dataset"
             )
+            
+            if file_name == "tmp_dataset_README.md":
+                os.remove(file_path)
             
         # Upload config if provided
         if config:
