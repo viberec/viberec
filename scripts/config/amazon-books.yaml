@@ -27,6 +27,7 @@ epochs: 500
 train_batch_size: 2048
 eval_batch_size: 2048
 valid_metric: NDCG@10
+metrics: [NDCG, Hit, AveragePopularity, GiniIndex, ItemCoverage, ShannonEntropy, TailPercentage]
 eval_args:
     split: {'LS': 'valid_and_test'}
     mode: 
