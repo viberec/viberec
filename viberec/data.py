@@ -5,6 +5,8 @@ from recbole.data import create_dataset, data_preparation
 from recbole.utils import init_logger
 from viberec.huggingface import upload_dataset
 from huggingface_hub import hf_hub_download
+import torch.distributed as dist
+
 
 def load_data(config):
     """
@@ -19,6 +21,10 @@ def load_data(config):
     dataset_name = config['dataset']
     logger = logging.getLogger()
     
+    # Patch torch.distributed.barrier to avoid errors in single-node/non-distributed runs
+    if not dist.is_initialized():
+        dist.barrier = lambda *args, **kwargs: None
+
     # Update config to ensure we save if we create from scratch
     config['save_dataset'] = True
     config['save_dataloaders'] = True
@@ -68,6 +74,10 @@ def preprocess_and_upload(
         config_dict (dict): Dictionary of config parameters.
         hf_token (str): Hugging Face token.
     """
+    # Patch torch.distributed.barrier to avoid errors in single-node/non-distributed runs
+    if not dist.is_initialized():
+        dist.barrier = lambda *args, **kwargs: None
+
     # 1. Initialize Config
     if config_dict is None:
         config_dict = {}
