@@ -30,24 +30,21 @@ def load_data(config):
 
     # Update config to ensure we save if we create from scratch
     config['save_dataset'] = True
-    config['save_dataloaders'] = True
+    config['save_dataloaders'] = False
     
     # Attempt to download processed data from Hugging Face
     checkpoint_dir = config['checkpoint_dir']
     dataset_file = f"{dataset_name}.pth"
-    dataloader_file = f"{dataset_name}-dataloader.pth"
     
     repo_id = f"viberec/{dataset_name}"
     
     try:
         logger.info(f"Checking for existing processed data in Hugging Face: {repo_id}")
-        hf_hub_download(repo_id=repo_id, filename=dataset_file, local_dir=checkpoint_dir, local_dir_use_symlinks=False, repo_type='dataset')
-        hf_hub_download(repo_id=repo_id, filename=dataloader_file, local_dir=checkpoint_dir, local_dir_use_symlinks=False, repo_type='dataset')
+        hf_hub_download(repo_id=repo_id, filename=dataset_file, local_dir=checkpoint_dir, repo_type='dataset')
         logger.info(f"Downloaded processed data to {checkpoint_dir}")
         
         # Update config to look for these specific files
         config['dataset_save_path'] = os.path.join(checkpoint_dir, dataset_file)
-        config['dataloaders_save_path'] = os.path.join(checkpoint_dir, dataloader_file)
         
     except Exception as e:
         logger.info(f"Could not download processed data from {repo_id} (might not exist). Proceeding to create locally. Error: {e}")
