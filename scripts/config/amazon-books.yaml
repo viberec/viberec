@@ -24,8 +24,8 @@ item_inter_num_interval: "[5,inf)"
 
 # training and evaluation
 epochs: 500
-train_batch_size: 4096
-eval_batch_size: 4096
+train_batch_size: 2048
+eval_batch_size: 2048
 valid_metric: NDCG@10
 eval_args:
     split: {'LS': 'valid_and_test'}
@@ -36,8 +36,9 @@ eval_args:
 
 learning_rate: 0.0003
 
-# disable negative sampling
-train_neg_sample_args: ~
+train_neg_sample_args: 
+    distribution: 'uniform'
+    sample_num: 4096
 
 # model
 embedding_size: 64
