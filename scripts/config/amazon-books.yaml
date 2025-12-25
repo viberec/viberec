@@ -41,9 +41,7 @@ custom_train_neg_sample_args:
     distribution: 'uniform'
     sample_num: 512
 
-train_neg_sample_args:
-    distribution: 'uniform'
-    sample_num: 1
+train_neg_sample_args: ~
 
 loss_type: BPR
 
