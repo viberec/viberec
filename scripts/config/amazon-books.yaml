@@ -41,11 +41,8 @@ custom_train_neg_sample_args:
     distribution: 'uniform'
     sample_num: 512
 
-train_neg_sample_args: 
-    distribution: 'uniform'
-    sample_num: 128
+train_neg_sample_args: None
 
-loss_type: BPR
 
 # model
 embedding_size: 64
