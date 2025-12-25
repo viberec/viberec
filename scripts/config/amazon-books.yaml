@@ -37,15 +37,11 @@ eval_args:
 
 learning_rate: 0.0003
 
-custom_train_neg_sample_args: 
-    distribution: 'uniform'
-    sample_num: 512
+custom_train_neg_sample_args: ~
 
-train_neg_sample_args: 
-    distribution: 'uniform'
-    sample_num: 1
+train_neg_sample_args: ~
 
-loss_type: BPR
+loss_type: CE
 
 # model
 embedding_size: 64
