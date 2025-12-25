@@ -41,7 +41,7 @@ custom_train_neg_sample_args:
     distribution: 'uniform'
     sample_num: 512
 
-train_neg_sample_args: None
+train_neg_sample_args: ~
 
 
 # model
