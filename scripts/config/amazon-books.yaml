@@ -41,5 +41,7 @@ custom_train_neg_sample_args:
     distribution: 'uniform'
     sample_num: 256
 
+train_neg_sample_args: ~
+
 # model
 embedding_size: 64
