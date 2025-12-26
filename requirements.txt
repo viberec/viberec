@@ -1,4 +1,4 @@
-git+https://github.com/viberec/Recbole.git@c1757420bf1b88d5c61321ec0b61e53daba2379f
+git+https://github.com/viberec/Recbole.git
 huggingface_hub
 ray[tune]
 wandb
