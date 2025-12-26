@@ -39,7 +39,7 @@ learning_rate: 0.0003
 
 custom_train_neg_sample_args: 
     distribution: 'uniform'
-    sample_num: 256
+    sample_num: 128
 
 train_neg_sample_args: ~
 
