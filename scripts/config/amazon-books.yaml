@@ -41,11 +41,8 @@ custom_train_neg_sample_args:
     distribution: 'uniform'
     sample_num: 128
 
-train_neg_sample_args: 
-    distribution: 'uniform'
-    sample_num: 1
+train_neg_sample_args: ~
 
-loss_type: 'BCE'
 
 # model
 embedding_size: 64
