@@ -79,7 +79,8 @@ def hypertune(model, dataset, config_file_list, params_file, output_file='hyper_
               cpus=1,
               max_t=50,
               grace_period=1,
-              reduction_factor=2):
+              reduction_factor=2,
+              max_concurrent_trials=None):
               
     # Convert config files to absolute paths to avoid FileNotFoundError in Ray workers
     if config_file_list:
@@ -155,7 +156,8 @@ def hypertune(model, dataset, config_file_list, params_file, output_file='hyper_
         config=config_space,
         num_samples=num_samples, 
         resources_per_trial={"cpu": cpus, "gpu": gpus},
-        scheduler=scheduler
+        scheduler=scheduler,
+        max_concurrent_trials=max_concurrent_trials
     )
     
     best_trial = analysis.get_best_trial(metric="valid_score", mode="max")

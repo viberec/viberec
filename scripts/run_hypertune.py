@@ -30,6 +30,7 @@ def main():
     parser.add_argument('--max_t', type=int, default=50, help='Max epochs for ASHA scheduler')
     parser.add_argument('--grace_period', type=int, default=1, help='Grace period for ASHA scheduler')
     parser.add_argument('--reduction_factor', type=int, default=2, help='Reduction factor for ASHA scheduler')
+    parser.add_argument('--max_concurrent_trials', type=int, default=None, help='Max concurrent trials (None for unlimited)')
 
     args, unknown = parser.parse_known_args()
 
@@ -89,7 +90,8 @@ def main():
         cpus=args.cpus,
         max_t=args.max_t,
         grace_period=args.grace_period,
-        reduction_factor=args.reduction_factor
+        reduction_factor=args.reduction_factor,
+        max_concurrent_trials=args.max_concurrent_trials
     )
 
 if __name__ == '__main__':
