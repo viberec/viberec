@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--grace_period', type=int, default=1, help='Grace period for ASHA scheduler')
     parser.add_argument('--reduction_factor', type=int, default=2, help='Reduction factor for ASHA scheduler')
     parser.add_argument('--max_concurrent_trials', type=int, default=None, help='Max concurrent trials (None for unlimited)')
+    parser.add_argument('--grid_search', action='store_true', help='Enable Grid Search (force tune.grid_search instead of choice)')
 
     args, unknown = parser.parse_known_args()
 
@@ -103,6 +104,7 @@ def main():
         pretrained_repo_id=args.pretrained_repo_id,
         cli_config_dict=config_dict,
         cli_search_space=cli_search_space,
+        grid_search=args.grid_search,
         num_samples=args.num_samples,
         gpus=args.gpus,
         cpus=args.cpus,
