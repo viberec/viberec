@@ -75,6 +75,7 @@ def hypertune(model, dataset, config_file_list, params_file=None, output_file='h
               pretrained_repo_id=None,
               cli_config_dict=None,
               cli_search_space=None,
+              grid_search=False,
               num_samples=1,
               gpus=0,
               cpus=1,
@@ -95,7 +96,10 @@ def hypertune(model, dataset, config_file_list, params_file=None, output_file='h
     if cli_search_space:
         for key, value in cli_search_space.items():
             if isinstance(value, list):
-                config_space[key] = tune.choice(value)
+                if grid_search:
+                     config_space[key] = tune.grid_search(value)
+                else:
+                     config_space[key] = tune.choice(value)
             else:
                  config_space[key] = tune.choice([value])
     
