@@ -1,0 +1,38 @@
+field_separator: "\t"
+seq_separator: " "
+USER_ID_FIELD: user_id
+ITEM_ID_FIELD: item_id
+RATING_FIELD: rating
+TIME_FIELD: timestamp
+NEG_PREFIX: neg_
+ITEM_LIST_LENGTH_FIELD: item_length
+LIST_SUFFIX: _list
+MAX_ITEM_LIST_LENGTH: 200
+POSITION_FIELD: position_id
+
+load_col:
+  inter: [user_id, item_id, rating, timestamp]
+
+val_interval:
+  rating: "[3,inf)"
+
+unused_col:
+  inter: [rating]
+
+user_inter_num_interval: "[5,inf)"
+item_inter_num_interval: "[5,inf)"
+
+epochs: 50
+train_batch_size: 4096
+eval_batch_size: 40960
+valid_metric: NDCG@10
+topk: 10
+metrics: [NDCG, Hit, AveragePopularity]
+
+eval_args:
+  split:
+    LS: valid_and_test
+  mode: full
+  order: TO
+
+train_neg_sample_args: ~
