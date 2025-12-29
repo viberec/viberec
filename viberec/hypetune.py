@@ -66,7 +66,7 @@ def parse_params_file_to_ray_space(params_file):
                 
     return space
 
-def hypertune(model, dataset, config_file_list, params_file, output_file='hyper_tuning.result',
+def hypertune(model, dataset, config_file_list, params_file=None, output_file='hyper_tuning.result',
               task='pretrain', 
               trainer_class=None, 
               repo_id=None, 
@@ -74,6 +74,7 @@ def hypertune(model, dataset, config_file_list, params_file, output_file='hyper_
               wandb_api_key=None,
               pretrained_repo_id=None,
               cli_config_dict=None,
+              cli_search_space=None,
               num_samples=1,
               gpus=0,
               cpus=1,
@@ -87,7 +88,16 @@ def hypertune(model, dataset, config_file_list, params_file, output_file='hyper_
         config_file_list = [os.path.abspath(f) for f in config_file_list]
               
     # 1. Parse Search Space
-    config_space = parse_params_file_to_ray_space(params_file)
+    config_space = {}
+    if params_file:
+         config_space.update(parse_params_file_to_ray_space(params_file))
+         
+    if cli_search_space:
+        for key, value in cli_search_space.items():
+            if isinstance(value, list):
+                config_space[key] = tune.choice(value)
+            else:
+                 config_space[key] = tune.choice([value])
     
     # 2. Define Trainable
     def train_func(ray_config):

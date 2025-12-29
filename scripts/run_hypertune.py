@@ -16,7 +16,7 @@ def main():
     parser.add_argument('--model', '-m', type=str, default='SASRec', help='Model name')
     parser.add_argument('--dataset', '-d', type=str, default='ml-100k', help='Dataset name')
     parser.add_argument('--config_files', type=str, default=None, help='Config files (space separated)')
-    parser.add_argument('--params_file', type=str, required=True, help='Hyperparameter tuning config file (params file)')
+    parser.add_argument('--params_file', type=str, default=None, help='Hyperparameter tuning config file (params file)')
     parser.add_argument('--output_file', type=str, default='scripts/output/hyper_tuning.result', help='Output file for tuning results')
     parser.add_argument('--task', type=str, default='pretrain', choices=['pretrain', 'finetune'], help='Task type: pretrain or finetune')
     parser.add_argument('--repo_id', type=str, default=None, help='HuggingFace Repo ID (unused during tuning usually)')
@@ -36,8 +36,11 @@ def main():
 
     config_file_list = args.config_files.strip().split(' ') if args.config_files else None
 
-    # Parse unknown args to config_dict
+    # Parse unknown args to config_dict or cli_search_space
     config_dict = {}
+    cli_search_space = {}
+    import ast
+    
     i = 0
     while i < len(unknown):
         key = unknown[i]
@@ -45,19 +48,33 @@ def main():
             key = key[2:]
             if i + 1 < len(unknown) and not unknown[i+1].startswith('--'):
                 value = unknown[i+1]
-                # Simple type inference
-                if value.lower() == 'true': value = True
-                elif value.lower() == 'false': value = False
-                elif value.lower() == 'none': value = None
-                else:
+                
+                # Try to parse as search space list
+                is_search_param = False
+                if value.strip().startswith('[') and value.strip().endswith(']'):
                     try:
-                        value = int(value)
-                    except ValueError:
+                        parsed_val = ast.literal_eval(value)
+                        if isinstance(parsed_val, list):
+                            cli_search_space[key] = parsed_val
+                            is_search_param = True
+                    except:
+                         pass
+
+                if not is_search_param:
+                    # Simple type inference
+                    if value.lower() == 'true': value = True
+                    elif value.lower() == 'false': value = False
+                    elif value.lower() == 'none': value = None
+                    else:
                         try:
-                            value = float(value)
+                            value = int(value)
                         except ValueError:
-                            pass
-                config_dict[key] = value
+                            try:
+                                value = float(value)
+                            except ValueError:
+                                pass
+                    config_dict[key] = value
+                
                 i += 2
             else:
                 config_dict[key] = True
@@ -85,6 +102,7 @@ def main():
         wandb_api_key=args.wandb_api_key,
         pretrained_repo_id=args.pretrained_repo_id,
         cli_config_dict=config_dict,
+        cli_search_space=cli_search_space,
         num_samples=args.num_samples,
         gpus=args.gpus,
         cpus=args.cpus,
