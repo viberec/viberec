@@ -14,7 +14,7 @@ load_col:
   inter: [user_id, item_id, rating, timestamp]
 
 val_interval:
-  rating: "[3,inf)"
+  rating: "[0,inf)"
 
 unused_col:
   inter: [rating]
