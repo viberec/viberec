@@ -90,40 +90,6 @@ def finetune(model_name, dataset_name, config_file_list, trainer_class=None, rep
 
     logger.info(model)
     
-    # 5. Initialize Trainer
-    
-    # Save original metrics
-    # 5. Initialize Trainer
-    
-    # Save original metrics
-    original_metrics = config['metrics']
-    
-    # --- Baseline Evaluation (Safe Metrics) ---
-    config['metrics'] = ['NDCG', 'Hit', 'AveragePopularity']
-    
-    import inspect
-    logger.info("Using default RecBole trainer for baseline check" if not trainer_class else f"Using {trainer_class.__name__} for baseline check")
-    baseline_trainer_cls = trainer_class if trainer_class else get_trainer(config['MODEL_TYPE'], config['model'])
-    
-    # Check if trainer accepts dataset
-    sig = inspect.signature(baseline_trainer_cls.__init__)
-    if 'dataset' in sig.parameters:
-        baseline_trainer = baseline_trainer_cls(config, model, dataset=dataset)
-    else:
-        baseline_trainer = baseline_trainer_cls(config, model)
-        
-    # Manual Collection for AveragePopularity
-    from recbole.evaluator import Collector
-    baseline_trainer.eval_collector = Collector(config)
-    baseline_trainer.eval_collector.data_collect(train_data)
-    
-    logger.info("Evaluating model before fine-tuning (Baseline)...")
-    baseline_result = baseline_trainer.evaluate(test_data, load_best_model=False, show_progress=config['show_progress'])
-    logger.info(f"Baseline Result: {baseline_result}")
-    
-    # --- Restore Full Metrics ---
-    config['metrics'] = original_metrics
-    
     # --- Load Teacher Model (if specified) ---
     teacher_model = None
     teacher_repo_id = config.get('teacher_repo_id')
@@ -197,6 +163,44 @@ def finetune(model_name, dataset_name, config_file_list, trainer_class=None, rep
         except Exception as e:
             logger.error(f"Failed to load Teacher from HF: {e}")
             raise e
+
+    # 5. Initialize Trainer
+    
+    # Save original metrics
+    original_metrics = config['metrics']
+    
+    # --- Baseline Evaluation (Safe Metrics) ---
+    config['metrics'] = ['NDCG', 'Hit', 'AveragePopularity']
+    
+    import inspect
+    logger.info("Using default RecBole trainer for baseline check" if not trainer_class else f"Using {trainer_class.__name__} for baseline check")
+    baseline_trainer_cls = trainer_class if trainer_class else get_trainer(config['MODEL_TYPE'], config['model'])
+    
+    # Check if trainer accepts dataset
+    sig = inspect.signature(baseline_trainer_cls.__init__)
+    
+    # Construct args dynamically for baseline trainer
+    kwargs = {}
+    if 'dataset' in sig.parameters:
+        kwargs['dataset'] = dataset
+    if 'ref_model' in sig.parameters and teacher_model:
+        kwargs['ref_model'] = teacher_model
+        
+    baseline_trainer = baseline_trainer_cls(config, model, **kwargs)
+        
+    # Manual Collection for AveragePopularity
+        
+    # Manual Collection for AveragePopularity
+    from recbole.evaluator import Collector
+    baseline_trainer.eval_collector = Collector(config)
+    baseline_trainer.eval_collector.data_collect(train_data)
+    
+    logger.info("Evaluating model before fine-tuning (Baseline)...")
+    baseline_result = baseline_trainer.evaluate(test_data, load_best_model=False, show_progress=config['show_progress'])
+    logger.info(f"Baseline Result: {baseline_result}")
+    
+    # --- Restore Full Metrics ---
+    config['metrics'] = original_metrics
 
     # Re-initialize Trainer with full config for Fine-tuning
     if trainer_class:
