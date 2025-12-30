@@ -124,6 +124,80 @@ def finetune(model_name, dataset_name, config_file_list, trainer_class=None, rep
     # --- Restore Full Metrics ---
     config['metrics'] = original_metrics
     
+    # --- Load Teacher Model (if specified) ---
+    teacher_model = None
+    teacher_repo_id = config.get('teacher_repo_id')
+    
+    if teacher_repo_id:
+        logger.info(f"Preparing Teacher to pass to Trainer: {teacher_repo_id}")
+        try:
+            # Download Checkpoint
+            api = HfApi(token=hf_token)
+            files = api.list_repo_files(repo_id=teacher_repo_id)
+            pth_files = [f for f in files if f.endswith('.pth')]
+            
+            if pth_files:
+                filename = pth_files[0]
+                teacher_ckpt_path = hf_hub_download(repo_id=teacher_repo_id, filename=filename, token=hf_token)
+                logger.info(f"Downloaded Teacher Checkpoint: {teacher_ckpt_path}")
+                
+                # Load Checkpoint
+                checkpoint = torch.load(teacher_ckpt_path, map_location=config['device'], weights_only=False)
+                teacher_config = checkpoint['config']
+                
+                # Initialize Teacher with CURRENT dataset (to match dimensions 3417)
+                teacher_model_class = get_model(teacher_config['model'])
+                teacher_model = teacher_model_class(teacher_config, train_data.dataset).to(config['device'])
+                
+                # Smart State Dict Loading (Handle Embedding Mismatch)
+                state_dict = checkpoint['state_dict']
+                new_state_dict = {}
+                
+                model_state = teacher_model.state_dict()
+                
+                for k, v in state_dict.items():
+                    k = k.replace("_orig_mod.", "") # Strip prefix
+                    if k in model_state:
+                        target_shape = model_state[k].shape
+                        if list(v.shape) != list(target_shape):
+                            logger.warning(f"⚠️ Shape mismatch for {k}: Ckpt {v.shape} vs Model {target_shape}")
+                            
+                            # Handle Embedding Mismatch (e.g. [3308, 64] -> [3417, 64])
+                            if len(v.shape) == 2 and v.shape[1] == target_shape[1]:
+                                if v.shape[0] < target_shape[0]:
+                                    logger.info(f"   -> Padding embedding {k} with random values for new items.")
+                                    # Create new tensor with target shape (copy existing weights, init rest)
+                                    new_tensor = torch.randn(target_shape, device=config['device']) * 0.02 # simple normal init
+                                    # Copy existing weights
+                                    new_tensor[:v.shape[0], :] = v
+                                    # Ensure padding idx is 0 if applicable (usually index 0 is padding)
+                                    if k == 'item_embedding.weight':
+                                         new_tensor[0] = 0 # Zero out padding index
+                                    v = new_tensor
+                                else:
+                                    logger.info(f"   -> Truncating embedding {k}.")
+                                    v = v[:target_shape[0], :]
+                            else:
+                                logger.error(f"   -> Cannot resize {k} automatically. Skipping.")
+                                continue
+                                
+                        new_state_dict[k] = v
+                    else:
+                        logger.warning(f"Key {k} not in model state dict. Skipping.")
+
+                teacher_model.load_state_dict(new_state_dict, strict=False)
+                teacher_model.eval() # Freeze
+                for p in teacher_model.parameters(): p.requires_grad = False
+                logger.info("👨‍🏫 Teacher Model loaded and frozen successfully.")
+                logger.info(teacher_model)
+                
+            else:
+                logger.warning(f"No .pth found in {teacher_repo_id}")
+                
+        except Exception as e:
+            logger.error(f"Failed to load Teacher from HF: {e}")
+            raise e
+
     # Re-initialize Trainer with full config for Fine-tuning
     if trainer_class:
         logger.info(f"Using custom trainer class: {trainer_class.__name__}")
@@ -133,10 +207,15 @@ def finetune(model_name, dataset_name, config_file_list, trainer_class=None, rep
         cls = get_trainer(config['MODEL_TYPE'], config['model'])
         
     sig = inspect.signature(cls.__init__)
+    
+    # Construct args dynamically
+    kwargs = {}
     if 'dataset' in sig.parameters:
-        trainer = cls(config, model, dataset=dataset)
-    else:
-        trainer = cls(config, model)
+        kwargs['dataset'] = dataset
+    if 'ref_model' in sig.parameters and teacher_model:
+        kwargs['ref_model'] = teacher_model
+        
+    trainer = cls(config, model, **kwargs)
     
     # [New] Evaluate Teacher Model (if available) - Before Training
     teacher_result = {}

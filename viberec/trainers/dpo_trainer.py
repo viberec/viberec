@@ -21,63 +21,14 @@ class DPOTrainer(RLFinetuneTrainer):
     The Student tries to rank items such that its preference distribution 
     aligns with the Teacher's superior probability manifold.
     """
-    def __init__(self, config, model, dataset=None):
+    def __init__(self, config, model, dataset=None, ref_model=None):
         super(DPOTrainer, self).__init__(config, model)
         
         # --- 1. Load the Teacher (Reference Model) ---
-        # --- 1. Load the Teacher (Reference Model) ---
-        teacher_ckpt_path = config.get('teacher_ckpt_path', None)
-        
-        # Check if we should download from HF
-        teacher_repo_id = config.get('teacher_repo_id', None)
-        if teacher_repo_id:
-            try:
-                from huggingface_hub import hf_hub_download, HfApi
-                self.logger.info(f"Downloading Teacher Model from HF Repo: {teacher_repo_id}")
-                
-                # Logic to find .pth file if specific filename not given (though usually we need structure)
-                # Assuming standard structure or just grabbing the first .pth
-                # Or even better, let `teacher_ckpt_path` be the filename if provided, else default
-                
-                api = HfApi()
-                files = api.list_repo_files(repo_id=teacher_repo_id)
-                pth_files = [f for f in files if f.endswith('.pth')]
-                
-                if pth_files:
-                    # If multiple, maybe pick one? or rely on user? 
-                    # For now, pick the first one which is standard in our flow
-                    filename = pth_files[0]
-                    teacher_ckpt_path = hf_hub_download(repo_id=teacher_repo_id, filename=filename)
-                    self.logger.info(f"Downloaded Teacher Checkpoint to: {teacher_ckpt_path}")
-                else:
-                    self.logger.warning(f"No .pth found in {teacher_repo_id}")
-
-            except Exception as e:
-                self.logger.error(f"Failed to download teacher from HF: {e}")
-        
-        if not teacher_ckpt_path:
-             raise ValueError("Teacher Checkpoint not found! Please provide 'teacher_ckpt_path' or 'teacher_repo_id' in config.")
-
-        self.logger.info(f"👨‍🏫 Loading Teacher Model from: {teacher_ckpt_path}")
-        
-        # Load checkpoint
-        checkpoint = torch.load(teacher_ckpt_path, map_location=self.device, weights_only=False)
-        teacher_config = checkpoint['config']
-        
-        # Validate Teacher Architecture
-        if teacher_config.get('hidden_size') != 64:
-             self.logger.warning(f"⚠️ Teacher model hidden_size is {teacher_config.get('hidden_size')}, expected 64! Ideally it should be larger than student (d={config['hidden_size']}).")
+        if ref_model is None:
+             raise ValueError("DPOTrainer now requires 'ref_model' to be passed explicitly in __init__.")
              
-        # Initialize Teacher with its own config (d=64) but SAME dataset
-        teacher_model_class = get_model(teacher_config['model'])
-        self.ref_model = teacher_model_class(teacher_config, dataset=None).to(self.device)
-        # Sanitize state_dict keys (remove _orig_mod. prefix if present from torch.compile)
-        state_dict = checkpoint['state_dict']
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            new_key = k.replace("_orig_mod.", "")
-            new_state_dict[new_key] = v
-        self.ref_model.load_state_dict(new_state_dict)
+        self.ref_model = ref_model
         
         # Freeze Teacher completely
         self.ref_model.eval()
