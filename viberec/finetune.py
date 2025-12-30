@@ -81,7 +81,12 @@ def finetune(model_name, dataset_name, config_file_list, trainer_class=None, rep
     if pretrained_path:
         logger.info(f"Loading pre-trained weights from {pretrained_path}")
         checkpoint = torch.load(pretrained_path, map_location=config['device'], weights_only=False)
-        model.load_state_dict(checkpoint['state_dict'], strict=False)
+        state_dict = checkpoint['state_dict']
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            new_key = k.replace("_orig_mod.", "")
+            new_state_dict[new_key] = v
+        model.load_state_dict(new_state_dict, strict=False)
 
     logger.info(model)
     

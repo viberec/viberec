@@ -71,7 +71,13 @@ class DPOTrainer(RLFinetuneTrainer):
         # Initialize Teacher with its own config (d=64) but SAME dataset
         teacher_model_class = get_model(teacher_config['model'])
         self.ref_model = teacher_model_class(teacher_config, dataset).to(self.device)
-        self.ref_model.load_state_dict(checkpoint['state_dict'])
+        # Sanitize state_dict keys (remove _orig_mod. prefix if present from torch.compile)
+        state_dict = checkpoint['state_dict']
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            new_key = k.replace("_orig_mod.", "")
+            new_state_dict[new_key] = v
+        self.ref_model.load_state_dict(new_state_dict)
         
         # Freeze Teacher completely
         self.ref_model.eval()
